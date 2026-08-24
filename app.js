@@ -15,6 +15,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
@@ -54,6 +55,23 @@ const categoriesContext = document.querySelector('#categories-context');
 const categoryFormTitle = document.querySelector('#category-form-title');
 const backToRoot = document.querySelector('#back-to-root');
 const retryCategories = document.querySelector('#retry-categories');
+const navButtons = document.querySelectorAll('[data-panel]');
+const channelForm = document.querySelector('#channel-form');
+const channelCategory = document.querySelector('#channel-category');
+const channelTitle = document.querySelector('#channel-title');
+const channelSubtitle = document.querySelector('#channel-subtitle');
+const channelStatus = document.querySelector('#channel-status');
+const channelLogo = document.querySelector('#channel-logo');
+const channelEditId = document.querySelector('#channel-edit-id');
+const channelFormTitle = document.querySelector('#channel-form-title');
+const channelSaveButton = document.querySelector('#channel-save-button');
+const channelCancelButton = document.querySelector('#channel-cancel-button');
+const channelFormMessage = document.querySelector('#channel-form-message');
+const channelsList = document.querySelector('#channels-list');
+const channelsLoading = document.querySelector('#channels-loading');
+const channelsEmpty = document.querySelector('#channels-empty');
+const channelsCount = document.querySelector('#channels-count');
+let currentChannels = [];
 let currentCategories = [];
 let currentParentId = null;
 
@@ -73,9 +91,18 @@ function resetCategories() {
 
 function showCategories(categories) {
   currentCategories = categories;
+  fillChannelCategories();
   categoriesLoading.classList.add('hidden');
   categoriesError.classList.add('hidden');
   renderCurrentCategoryView();
+}
+
+function fillChannelCategories() {
+  const priorValue = channelCategory.value;
+  channelCategory.innerHTML = '<option value="">اختر القسم</option>' + currentCategories
+    .map((category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.title || 'قسم بلا اسم')}</option>`)
+    .join('');
+  channelCategory.value = currentCategories.some((category) => category.id === priorValue) ? priorValue : '';
 }
 
 function renderCurrentCategoryView() {
@@ -138,11 +165,38 @@ async function loadCategories() {
   }
 }
 
+async function loadChannels() {
+  channelsLoading.classList.remove('hidden');
+  channelsList.classList.add('hidden');
+  channelsEmpty.classList.add('hidden');
+  try {
+    const snapshot = await Promise.race([
+      getDocs(collection(db, 'channels')),
+      new Promise((_, reject) => window.setTimeout(() => reject(new Error('timeout')), 12000)),
+    ]);
+    currentChannels = snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
+    channelsLoading.classList.add('hidden');
+    channelsCount.textContent = `${currentChannels.length} قناة`;
+    if (!currentChannels.length) { channelsEmpty.classList.remove('hidden'); return; }
+    channelsList.innerHTML = currentChannels.map((channel) => {
+      const category = currentCategories.find((item) => item.id === channel.categoryId);
+      const logo = channel.logoUrl ? `<img class="channel-logo" src="${escapeHtml(channel.logoUrl)}" alt="">` : '<div class="channel-logo category-image-placeholder">⚽</div>';
+      return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(category?.title || 'قسم غير محدد')} · ${escapeHtml(channel.subtitle || 'بدون وصف')}</p></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
+    }).join('');
+    channelsList.classList.remove('hidden');
+  } catch (_) {
+    channelsLoading.classList.add('hidden');
+    channelsEmpty.classList.remove('hidden');
+    channelsEmpty.innerHTML = '<h2>تعذر تحميل القنوات</h2><p>تأكد من إضافة صلاحية channels في قواعد Firestore أدناه.</p>';
+  }
+}
+
 onAuthStateChanged(auth, (user) => {
   if (user) {
     document.querySelector('#owner-email').textContent = user.email || 'المالك';
     showView('dashboard');
     loadCategories();
+    loadChannels();
     return;
   }
   showView('login');
@@ -165,6 +219,10 @@ loginForm.addEventListener('submit', async (event) => {
 
 document.querySelector('#logout-button').addEventListener('click', () => signOut(auth));
 retryCategories.addEventListener('click', loadCategories);
+navButtons.forEach((button) => button.addEventListener('click', () => {
+  navButtons.forEach((item) => item.classList.toggle('active', item === button));
+  document.querySelectorAll('.admin-panel').forEach((panel) => panel.classList.toggle('hidden', panel.id !== button.dataset.panel));
+}));
 
 categoriesList.addEventListener('click', (event) => {
   const edit = event.target.closest('[data-edit-category]');
@@ -231,4 +289,34 @@ categoryForm.addEventListener('submit', async (event) => {
     categorySaveButton.disabled = false;
     categorySaveButton.textContent = 'إضافة القسم';
   }
+});
+
+function resetChannelForm() {
+  channelForm.reset(); channelEditId.value = ''; channelFormTitle.textContent = 'إضافة قناة';
+  channelSaveButton.textContent = 'إضافة القناة'; channelCancelButton.classList.add('hidden'); channelFormMessage.textContent = '';
+}
+
+channelForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!channelCategory.value || !channelTitle.value.trim()) return;
+  const data = { categoryId: channelCategory.value, title: channelTitle.value.trim(), subtitle: channelSubtitle.value.trim(), status: channelStatus.value, logoUrl: channelLogo.value.trim() || null, updatedAt: serverTimestamp() };
+  channelSaveButton.disabled = true;
+  try {
+    if (channelEditId.value) await updateDoc(doc(db, 'channels', channelEditId.value), data);
+    else await addDoc(collection(db, 'channels'), { ...data, viewCount: 0, createdAt: serverTimestamp() });
+    resetChannelForm(); await loadChannels();
+  } catch (_) { channelFormMessage.textContent = 'تعذر حفظ القناة. تحقق من قواعد Firestore.'; channelFormMessage.classList.add('error'); }
+  finally { channelSaveButton.disabled = false; }
+});
+channelCancelButton.addEventListener('click', resetChannelForm);
+channelsList.addEventListener('click', async (event) => {
+  const edit = event.target.closest('[data-edit-channel]'); const remove = event.target.closest('[data-delete-channel]');
+  if (edit) { const channel = currentChannels.find((item) => item.id === edit.dataset.editChannel); if (!channel) return; channelEditId.value = channel.id; channelCategory.value = channel.categoryId || ''; channelTitle.value = channel.title || ''; channelSubtitle.value = channel.subtitle || ''; channelStatus.value = channel.status || 'upcoming'; channelLogo.value = channel.logoUrl || ''; channelFormTitle.textContent = `تعديل: ${channel.title}`; channelSaveButton.textContent = 'حفظ التعديل'; channelCancelButton.classList.remove('hidden'); return; }
+  if (remove) { const channel = currentChannels.find((item) => item.id === remove.dataset.deleteChannel); if (!window.confirm(`حذف «${channel?.title || ''}»؟`)) return; try { await deleteDoc(doc(db, 'channels', remove.dataset.deleteChannel)); await loadChannels(); } catch (_) { window.alert('تعذر الحذف.'); } }
+});
+
+document.querySelector('#theme-form').addEventListener('submit', async (event) => {
+  event.preventDefault(); const message = document.querySelector('#theme-message');
+  try { await setDoc(doc(db, 'settings', 'theme'), { primaryColor: document.querySelector('#primary-color').value, backgroundColor: document.querySelector('#background-color').value }, { merge: true }); message.textContent = 'تم حفظ الألوان، وستظهر في التطبيق.'; }
+  catch (_) { message.textContent = 'تعذر حفظ الألوان. تحقق من قواعد Firestore.'; message.classList.add('error'); }
 });

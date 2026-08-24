@@ -37,6 +37,14 @@
           <button id="logout-button" class="secondary-button" type="button">تسجيل الخروج</button>
         </header>
 
+        <nav class="admin-nav" aria-label="إدارة اللوحة">
+          <button class="nav-button active" type="button" data-panel="categories-panel">الأقسام</button>
+          <button class="nav-button" type="button" data-panel="channels-panel">القنوات</button>
+          <button class="nav-button" type="button" data-panel="settings-panel">ألوان التطبيق</button>
+        </nav>
+
+        <section id="categories-panel" class="admin-panel">
+
         <section class="section-heading">
           <div>
             <p class="eyebrow">إدارة المحتوى · إضافة قسم رئيسي</p>
@@ -85,6 +93,36 @@
         <section class="next-step card">
           <span>الخطوة القادمة</span>
           <p>الأقسام الفرعية وتعديل الاسم.</p>
+        </section>
+        </section>
+
+        <section id="channels-panel" class="admin-panel hidden">
+          <section class="section-heading">
+            <div><p class="eyebrow">إدارة المحتوى</p><h2>القنوات</h2><p class="muted">اربط كل قناة بالقسم الفرعي المناسب.</p></div>
+            <span id="channels-count" class="count-badge">جارٍ التحميل…</span>
+          </section>
+          <section class="card category-form-card channel-form-card">
+            <div><h2 id="channel-form-title">إضافة قناة</h2><p class="muted">بيانات العرض فقط؛ رابط البث الآمن مرحلة لاحقة.</p></div>
+            <form id="channel-form" class="channel-form">
+              <input id="channel-edit-id" type="hidden" />
+              <div><label for="channel-category">القسم</label><select id="channel-category" required></select></div>
+              <div><label for="channel-title">اسم القناة</label><input id="channel-title" required maxlength="50" placeholder="مثال: SSC 1" /></div>
+              <div><label for="channel-subtitle">وصف مختصر</label><input id="channel-subtitle" maxlength="90" placeholder="مثال: مباريات مباشرة" /></div>
+              <div><label for="channel-status">الحالة</label><select id="channel-status"><option value="live">مباشر الآن</option><option value="upcoming">قريباً</option><option value="ended">انتهى</option></select></div>
+              <div><label for="channel-logo">رابط الشعار <span class="optional-label">اختياري</span></label><input id="channel-logo" type="url" placeholder="https://example.com/logo.png" /></div>
+              <p id="channel-form-message" class="form-message" role="status"></p>
+              <button id="channel-save-button" type="submit">إضافة القناة</button>
+              <button id="channel-cancel-button" class="secondary-button hidden" type="button">إلغاء التعديل</button>
+            </form>
+          </section>
+          <section id="channels-loading" class="card loading-card"><span class="spinner"></span><p>جارٍ قراءة القنوات…</p></section>
+          <section id="channels-empty" class="card message-card hidden"><h2>لا توجد قنوات بعد</h2><p>أضف أول قناة من النموذج أعلاه.</p></section>
+          <section id="channels-list" class="channels-list hidden"></section>
+        </section>
+
+        <section id="settings-panel" class="admin-panel hidden">
+          <section class="section-heading"><div><p class="eyebrow">إعدادات التطبيق</p><h2>ألوان التطبيق</h2><p class="muted">تتغير في تطبيق الجوال فور حفظها.</p></div></section>
+          <section class="card category-form-card"><div><h2>الثيم</h2><p class="muted">اكتب اللون بصيغة مثل #00C853.</p></div><form id="theme-form" class="category-form"><div><label for="primary-color">اللون الرئيسي</label><input id="primary-color" value="#00C853" pattern="#[0-9a-fA-F]{6}" required /></div><div><label for="background-color">لون الخلفية</label><input id="background-color" value="#0D0D0D" pattern="#[0-9a-fA-F]{6}" required /></div><p id="theme-message" class="form-message"></p><button type="submit">حفظ الألوان</button></form></section>
         </section>
       </section>
     </main>
