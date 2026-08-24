@@ -46,9 +46,13 @@ const categoryForm = document.querySelector('#category-form');
 const categorySaveButton = document.querySelector('#category-save-button');
 const categoryFormMessage = document.querySelector('#category-form-message');
 const categoryParent = document.querySelector('#category-parent');
-const parentOptions = document.querySelector('#parent-options');
+const categoriesTitle = document.querySelector('#categories-title');
+const categoriesContext = document.querySelector('#categories-context');
+const categoryFormTitle = document.querySelector('#category-form-title');
+const backToRoot = document.querySelector('#back-to-root');
 let stopWatchingCategories = null;
 let currentCategories = [];
+let currentParentId = null;
 
 function showView(name) {
   Object.entries(views).forEach(([key, element]) => element.classList.toggle('hidden', key !== name));
@@ -65,39 +69,43 @@ function resetCategories() {
 
 function showCategories(categories) {
   currentCategories = categories;
-  updateParentOptions();
   categoriesLoading.classList.add('hidden');
   categoriesError.classList.add('hidden');
-  categoriesCount.textContent = `${categories.length} قسم`;
-  if (categories.length === 0) {
+  renderCurrentCategoryView();
+}
+
+function renderCurrentCategoryView() {
+  const parent = currentCategories.find((category) => category.id === currentParentId);
+  if (currentParentId && !parent) currentParentId = null;
+  const visibleCategories = currentCategories.filter(
+    (category) => (category.parentId || null) === currentParentId,
+  );
+  const isRoot = currentParentId === null;
+  const parentTitle = parent?.title || '';
+  categoriesTitle.textContent = isRoot ? 'الأقسام الرئيسية' : `داخل قسم: ${parentTitle}`;
+  categoriesContext.textContent = isRoot
+    ? 'اختر قسماً لعرض ما بداخله، أو أضف قسماً رئيسياً.'
+    : `كل قسم تضيفه هنا يصبح فرعياً داخل «${parentTitle}».`;
+  categoryFormTitle.textContent = isRoot ? 'إضافة قسم رئيسي' : `إضافة قسم داخل «${parentTitle}»`;
+  categoryParent.value = currentParentId || '';
+  backToRoot.classList.toggle('hidden', isRoot);
+  categoriesCount.textContent = `${visibleCategories.length} قسم`;
+  if (visibleCategories.length === 0) {
     categoriesEmpty.classList.remove('hidden');
     categoriesList.classList.add('hidden');
     return;
   }
 
   categoriesEmpty.classList.add('hidden');
-  categoriesList.innerHTML = categories.map(({ id, ...category }) => {
+  categoriesList.innerHTML = visibleCategories.map(({ id, ...category }) => {
     const title = escapeHtml(category.title || 'قسم بلا اسم');
-    const order = Number.isFinite(category.order) ? category.order : 0;
     const image = category.iconUrl
       ? `<img class="category-image" src="${escapeHtml(category.iconUrl)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'category-image-placeholder', textContent: '⚽'}))">`
       : '<div class="category-image-placeholder" aria-hidden="true">⚽</div>';
-    const parent = categories.find((item) => item.id === category.parentId);
-    const location = parent ? `داخل: ${escapeHtml(parent.title || 'قسم')}` : 'قسم رئيسي';
-    return `<article class="card category-card">${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${location}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p></div></article>`;
+    const childrenCount = currentCategories.filter((item) => item.parentId === id).length;
+    return `<article class="card category-card">${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${childrenCount ? `${childrenCount} أقسام داخلية` : 'لا توجد أقسام داخلية'}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p><button class="open-category-button" type="button" data-open-category="${escapeHtml(id)}">فتح القسم</button></div></article>`;
   }).join('');
   categoriesList.classList.remove('hidden');
-}
-
-function updateParentOptions() {
-  const selectedId = categoryParent.value;
-  const validSelectedId = currentCategories.some((category) => category.id === selectedId)
-    ? selectedId
-    : '';
-  categoryParent.value = validSelectedId;
-  parentOptions.innerHTML = `<button class="parent-choice ${validSelectedId ? '' : 'selected'}" type="button" data-parent-id="">قسم رئيسي</button>` + currentCategories
-    .map((category) => `<button class="parent-choice ${category.id === validSelectedId ? 'selected' : ''}" type="button" data-parent-id="${escapeHtml(category.id)}">داخل: ${escapeHtml(category.title || 'قسم بلا اسم')}</button>`)
-    .join('');
 }
 
 function escapeHtml(value) {
@@ -149,18 +157,25 @@ loginForm.addEventListener('submit', async (event) => {
 
 document.querySelector('#logout-button').addEventListener('click', () => signOut(auth));
 
-parentOptions.addEventListener('click', (event) => {
-  const choice = event.target.closest('[data-parent-id]');
-  if (!choice) return;
-  categoryParent.value = choice.dataset.parentId;
-  updateParentOptions();
+categoriesList.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-open-category]');
+  if (!button) return;
+  currentParentId = button.dataset.openCategory;
+  categoryFormMessage.textContent = '';
+  renderCurrentCategoryView();
+});
+
+backToRoot.addEventListener('click', () => {
+  currentParentId = null;
+  categoryFormMessage.textContent = '';
+  renderCurrentCategoryView();
 });
 
 categoryForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const title = categoryForm.elements.title.value.trim();
   const iconUrl = categoryForm.elements.image.value.trim();
-  const parentId = categoryForm.elements.parentId.value || null;
+  const parentId = currentParentId;
   if (!title) return;
 
   categoryFormMessage.textContent = '';
@@ -177,7 +192,7 @@ categoryForm.addEventListener('submit', async (event) => {
       createdAt: serverTimestamp(),
     });
     categoryForm.reset();
-    updateParentOptions();
+    categoryParent.value = currentParentId || '';
     categoryFormMessage.textContent = 'تمت إضافة القسم. سيظهر فوراً في قائمة الأقسام والتطبيق.';
   } catch (error) {
     categoryFormMessage.textContent = 'تعذر حفظ القسم. تأكد أنك دخلت بحساب المالك ثم أعد المحاولة.';

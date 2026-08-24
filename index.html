@@ -40,15 +40,18 @@
         <section class="section-heading">
           <div>
             <p class="eyebrow">إدارة المحتوى · إضافة قسم رئيسي</p>
-            <h2>الأقسام الحالية</h2>
-            <p class="muted">أضف اسماً وصورة خلفية للقسم.</p>
+            <h2 id="categories-title">الأقسام الرئيسية</h2>
+            <p id="categories-context" class="muted">أضف اسماً وصورة خلفية للقسم.</p>
           </div>
-          <span id="categories-count" class="count-badge">جارٍ التحميل…</span>
+          <div class="section-actions">
+            <button id="back-to-root" class="secondary-button hidden" type="button">العودة للأقسام الرئيسية</button>
+            <span id="categories-count" class="count-badge">جارٍ التحميل…</span>
+          </div>
         </section>
 
         <section class="card category-form-card">
           <div>
-            <h2>إضافة قسم جديد</h2>
+            <h2 id="category-form-title">إضافة قسم رئيسي</h2>
             <p class="muted">مثال: كرة القدم أو القنوات الرياضية.</p>
           </div>
           <form id="category-form" class="category-form">
@@ -60,11 +63,7 @@
               <label for="category-image">رابط صورة الخلفية <span class="optional-label">اختياري</span></label>
               <input id="category-image" name="image" type="url" placeholder="https://example.com/image.jpg" />
             </div>
-            <div class="parent-picker">
-              <label>مكان القسم</label>
-              <input id="category-parent" name="parentId" type="hidden" value="" />
-              <div id="parent-options" class="parent-options" aria-label="اختر القسم الأب"></div>
-            </div>
+            <input id="category-parent" name="parentId" type="hidden" value="" />
             <p id="category-form-message" class="form-message" role="status"></p>
             <button id="category-save-button" type="submit">إضافة القسم</button>
           </form>
