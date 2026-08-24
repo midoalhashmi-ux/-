@@ -46,6 +46,7 @@ const categoryForm = document.querySelector('#category-form');
 const categorySaveButton = document.querySelector('#category-save-button');
 const categoryFormMessage = document.querySelector('#category-form-message');
 const categoryParent = document.querySelector('#category-parent');
+const parentOptions = document.querySelector('#parent-options');
 let stopWatchingCategories = null;
 let currentCategories = [];
 
@@ -90,12 +91,13 @@ function showCategories(categories) {
 
 function updateParentOptions() {
   const selectedId = categoryParent.value;
-  categoryParent.innerHTML = '<option value="">قسم رئيسي</option>' + currentCategories
-    .map((category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.title || 'قسم بلا اسم')}</option>`)
-    .join('');
-  categoryParent.value = currentCategories.some((category) => category.id === selectedId)
+  const validSelectedId = currentCategories.some((category) => category.id === selectedId)
     ? selectedId
     : '';
+  categoryParent.value = validSelectedId;
+  parentOptions.innerHTML = `<button class="parent-choice ${validSelectedId ? '' : 'selected'}" type="button" data-parent-id="">قسم رئيسي</button>` + currentCategories
+    .map((category) => `<button class="parent-choice ${category.id === validSelectedId ? 'selected' : ''}" type="button" data-parent-id="${escapeHtml(category.id)}">داخل: ${escapeHtml(category.title || 'قسم بلا اسم')}</button>`)
+    .join('');
 }
 
 function escapeHtml(value) {
@@ -147,6 +149,13 @@ loginForm.addEventListener('submit', async (event) => {
 
 document.querySelector('#logout-button').addEventListener('click', () => signOut(auth));
 
+parentOptions.addEventListener('click', (event) => {
+  const choice = event.target.closest('[data-parent-id]');
+  if (!choice) return;
+  categoryParent.value = choice.dataset.parentId;
+  updateParentOptions();
+});
+
 categoryForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const title = categoryForm.elements.title.value.trim();
@@ -168,6 +177,7 @@ categoryForm.addEventListener('submit', async (event) => {
       createdAt: serverTimestamp(),
     });
     categoryForm.reset();
+    updateParentOptions();
     categoryFormMessage.textContent = 'تمت إضافة القسم. سيظهر فوراً في قائمة الأقسام والتطبيق.';
   } catch (error) {
     categoryFormMessage.textContent = 'تعذر حفظ القسم. تأكد أنك دخلت بحساب المالك ثم أعد المحاولة.';
