@@ -11,6 +11,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  getDoc,
   getFirestore,
   orderBy,
   query,
@@ -62,6 +63,7 @@ const channelTitle = document.querySelector('#channel-title');
 const channelSubtitle = document.querySelector('#channel-subtitle');
 const channelStatus = document.querySelector('#channel-status');
 const channelLogo = document.querySelector('#channel-logo');
+const channelPlayerKey = document.querySelector('#channel-player-key');
 const channelEditId = document.querySelector('#channel-edit-id');
 const channelFormTitle = document.querySelector('#channel-form-title');
 const channelSaveButton = document.querySelector('#channel-save-button');
@@ -191,12 +193,25 @@ async function loadChannels() {
   }
 }
 
+async function loadPlayerSettings() {
+  try {
+    const snapshot = await getDoc(doc(db, 'settings', 'player'));
+    const data = snapshot.data();
+    if (!data) return;
+    document.querySelector('#player-scheme').value = data.deepLinkScheme || 'sportsplayer';
+    document.querySelector('#player-store-url').value = data.storeUrl || '';
+  } catch (_) {
+    // إعدادات المشغل اختيارية إلى أن ينشر تطبيق المشغل في Google Play.
+  }
+}
+
 onAuthStateChanged(auth, (user) => {
   if (user) {
     document.querySelector('#owner-email').textContent = user.email || 'المالك';
     showView('dashboard');
     loadCategories();
     loadChannels();
+    loadPlayerSettings();
     return;
   }
   showView('login');
@@ -299,7 +314,7 @@ function resetChannelForm() {
 channelForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (!channelCategory.value || !channelTitle.value.trim()) return;
-  const data = { categoryId: channelCategory.value, title: channelTitle.value.trim(), subtitle: channelSubtitle.value.trim(), status: channelStatus.value, logoUrl: channelLogo.value.trim() || null, updatedAt: serverTimestamp() };
+  const data = { categoryId: channelCategory.value, title: channelTitle.value.trim(), subtitle: channelSubtitle.value.trim(), status: channelStatus.value, logoUrl: channelLogo.value.trim() || null, playerChannelKey: channelPlayerKey.value.trim() || null, updatedAt: serverTimestamp() };
   channelSaveButton.disabled = true;
   try {
     if (channelEditId.value) await updateDoc(doc(db, 'channels', channelEditId.value), data);
@@ -311,7 +326,7 @@ channelForm.addEventListener('submit', async (event) => {
 channelCancelButton.addEventListener('click', resetChannelForm);
 channelsList.addEventListener('click', async (event) => {
   const edit = event.target.closest('[data-edit-channel]'); const remove = event.target.closest('[data-delete-channel]');
-  if (edit) { const channel = currentChannels.find((item) => item.id === edit.dataset.editChannel); if (!channel) return; channelEditId.value = channel.id; channelCategory.value = channel.categoryId || ''; channelTitle.value = channel.title || ''; channelSubtitle.value = channel.subtitle || ''; channelStatus.value = channel.status || 'upcoming'; channelLogo.value = channel.logoUrl || ''; channelFormTitle.textContent = `تعديل: ${channel.title}`; channelSaveButton.textContent = 'حفظ التعديل'; channelCancelButton.classList.remove('hidden'); return; }
+  if (edit) { const channel = currentChannels.find((item) => item.id === edit.dataset.editChannel); if (!channel) return; channelEditId.value = channel.id; channelCategory.value = channel.categoryId || ''; channelTitle.value = channel.title || ''; channelSubtitle.value = channel.subtitle || ''; channelStatus.value = channel.status || 'upcoming'; channelLogo.value = channel.logoUrl || ''; channelPlayerKey.value = channel.playerChannelKey || ''; channelFormTitle.textContent = `تعديل: ${channel.title}`; channelSaveButton.textContent = 'حفظ التعديل'; channelCancelButton.classList.remove('hidden'); return; }
   if (remove) { const channel = currentChannels.find((item) => item.id === remove.dataset.deleteChannel); if (!window.confirm(`حذف «${channel?.title || ''}»؟`)) return; try { await deleteDoc(doc(db, 'channels', remove.dataset.deleteChannel)); await loadChannels(); } catch (_) { window.alert('تعذر الحذف.'); } }
 });
 
@@ -319,4 +334,23 @@ document.querySelector('#theme-form').addEventListener('submit', async (event) =
   event.preventDefault(); const message = document.querySelector('#theme-message');
   try { await setDoc(doc(db, 'settings', 'theme'), { primaryColor: document.querySelector('#primary-color').value, backgroundColor: document.querySelector('#background-color').value }, { merge: true }); message.textContent = 'تم حفظ الألوان، وستظهر في التطبيق.'; }
   catch (_) { message.textContent = 'تعذر حفظ الألوان. تحقق من قواعد Firestore.'; message.classList.add('error'); }
+});
+
+document.querySelector('#player-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const message = document.querySelector('#player-message');
+  const scheme = document.querySelector('#player-scheme').value.trim().replaceAll('://', '');
+  const storeUrl = document.querySelector('#player-store-url').value.trim();
+  try {
+    await setDoc(doc(db, 'settings', 'player'), {
+      deepLinkScheme: scheme,
+      storeUrl,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    message.classList.remove('error');
+    message.textContent = 'تم حفظ إعدادات المشغل.';
+  } catch (_) {
+    message.classList.add('error');
+    message.textContent = 'تعذر حفظ إعدادات المشغل. تحقق من قواعد Firestore.';
+  }
 });

@@ -110,6 +110,7 @@
               <div><label for="channel-subtitle">وصف مختصر</label><input id="channel-subtitle" maxlength="90" placeholder="مثال: مباريات مباشرة" /></div>
               <div><label for="channel-status">الحالة</label><select id="channel-status"><option value="live">مباشر الآن</option><option value="upcoming">قريباً</option><option value="ended">انتهى</option></select></div>
               <div><label for="channel-logo">رابط الشعار <span class="optional-label">اختياري</span></label><input id="channel-logo" type="url" placeholder="https://example.com/logo.png" /></div>
+              <div><label for="channel-player-key">مفتاح القناة في المشغل <span class="optional-label">اختياري حالياً</span></label><input id="channel-player-key" maxlength="80" placeholder="مثال: ssc-1-hd" /></div>
               <p id="channel-form-message" class="form-message" role="status"></p>
               <button id="channel-save-button" type="submit">إضافة القناة</button>
               <button id="channel-cancel-button" class="secondary-button hidden" type="button">إلغاء التعديل</button>
@@ -123,6 +124,7 @@
         <section id="settings-panel" class="admin-panel hidden">
           <section class="section-heading"><div><p class="eyebrow">إعدادات التطبيق</p><h2>ألوان التطبيق</h2><p class="muted">تتغير في تطبيق الجوال فور حفظها.</p></div></section>
           <section class="card category-form-card"><div><h2>الثيم</h2><p class="muted">اكتب اللون بصيغة مثل #00C853.</p></div><form id="theme-form" class="category-form"><div><label for="primary-color">اللون الرئيسي</label><input id="primary-color" value="#00C853" pattern="#[0-9a-fA-F]{6}" required /></div><div><label for="background-color">لون الخلفية</label><input id="background-color" value="#0D0D0D" pattern="#[0-9a-fA-F]{6}" required /></div><p id="theme-message" class="form-message"></p><button type="submit">حفظ الألوان</button></form></section>
+          <section class="card category-form-card"><div><h2>تطبيق المشغل</h2><p class="muted">هذه الإعدادات تخبر تطبيق المحتوى كيف يفتح المشغل وكيف ينقل المستخدم للمتجر.</p></div><form id="player-form" class="category-form"><div><label for="player-scheme">اسم الرابط الداخلي</label><input id="player-scheme" value="sportsplayer" maxlength="30" placeholder="sportsplayer" required /></div><div><label for="player-store-url">رابط Google Play المباشر</label><input id="player-store-url" type="url" placeholder="https://play.google.com/store/apps/details?id=..." required /></div><p id="player-message" class="form-message"></p><button type="submit">حفظ إعدادات المشغل</button></form></section>
         </section>
       </section>
     </main>
