@@ -37,16 +37,30 @@
           <button id="logout-button" class="secondary-button" type="button">تسجيل الخروج</button>
         </header>
 
-        <section class="welcome card">
-          <span class="step-label">تم تجهيز الجزء الأول</span>
-          <h2>تم ربط بوابة المالك بنجاح</h2>
-          <p>سيظهر هنا في الجزء التالي قسم إدارة الأقسام، ثم إدارة القنوات.</p>
+        <section class="section-heading">
+          <div>
+            <p class="eyebrow">إدارة المحتوى · الجزء 1</p>
+            <h2>الأقسام الحالية</h2>
+            <p class="muted">هذه القائمة للعرض فقط في هذه المرحلة.</p>
+          </div>
+          <span id="categories-count" class="count-badge">جارٍ التحميل…</span>
         </section>
 
-        <section class="coming-grid" aria-label="خطوات قادمة">
-          <article class="card coming-item"><span>01</span><h2>إدارة الأقسام</h2><p>إضافة وتعديل وحذف وترتيب الأقسام.</p></article>
-          <article class="card coming-item"><span>02</span><h2>إدارة القنوات</h2><p>ربط القناة بالقسم وتحديث بياناتها.</p></article>
-          <article class="card coming-item"><span>03</span><h2>الثيم والإعدادات</h2><p>ألوان التطبيق وخلفيته من اللوحة.</p></article>
+        <section id="categories-loading" class="card loading-card">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>جارٍ قراءة الأقسام من التطبيق…</p>
+        </section>
+
+        <section id="categories-error" class="card message-card error-card hidden" role="alert"></section>
+        <section id="categories-empty" class="card message-card hidden">
+          <h2>لا توجد أقسام بعد</h2>
+          <p>هذا طبيعي إذا لم تتم إضافة بيانات للتطبيق حتى الآن.</p>
+        </section>
+        <section id="categories-list" class="categories-grid hidden" aria-label="قائمة الأقسام"></section>
+
+        <section class="next-step card">
+          <span>الخطوة القادمة</span>
+          <p>إضافة أول قسم من لوحة التحكم.</p>
         </section>
       </section>
     </main>
