@@ -45,7 +45,9 @@ const categoriesCount = document.querySelector('#categories-count');
 const categoryForm = document.querySelector('#category-form');
 const categorySaveButton = document.querySelector('#category-save-button');
 const categoryFormMessage = document.querySelector('#category-form-message');
+const categoryParent = document.querySelector('#category-parent');
 let stopWatchingCategories = null;
+let currentCategories = [];
 
 function showView(name) {
   Object.entries(views).forEach(([key, element]) => element.classList.toggle('hidden', key !== name));
@@ -61,6 +63,8 @@ function resetCategories() {
 }
 
 function showCategories(categories) {
+  currentCategories = categories;
+  updateParentOptions();
   categoriesLoading.classList.add('hidden');
   categoriesError.classList.add('hidden');
   categoriesCount.textContent = `${categories.length} قسم`;
@@ -77,9 +81,21 @@ function showCategories(categories) {
     const image = category.iconUrl
       ? `<img class="category-image" src="${escapeHtml(category.iconUrl)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'category-image-placeholder', textContent: '⚽'}))">`
       : '<div class="category-image-placeholder" aria-hidden="true">⚽</div>';
-    return `<article class="card category-card">${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>الترتيب: ${order}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p></div></article>`;
+    const parent = categories.find((item) => item.id === category.parentId);
+    const location = parent ? `داخل: ${escapeHtml(parent.title || 'قسم')}` : 'قسم رئيسي';
+    return `<article class="card category-card">${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${location}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p></div></article>`;
   }).join('');
   categoriesList.classList.remove('hidden');
+}
+
+function updateParentOptions() {
+  const selectedId = categoryParent.value;
+  categoryParent.innerHTML = '<option value="">قسم رئيسي</option>' + currentCategories
+    .map((category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.title || 'قسم بلا اسم')}</option>`)
+    .join('');
+  categoryParent.value = currentCategories.some((category) => category.id === selectedId)
+    ? selectedId
+    : '';
 }
 
 function escapeHtml(value) {
@@ -135,6 +151,7 @@ categoryForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const title = categoryForm.elements.title.value.trim();
   const iconUrl = categoryForm.elements.image.value.trim();
+  const parentId = categoryForm.elements.parentId.value || null;
   if (!title) return;
 
   categoryFormMessage.textContent = '';
@@ -145,6 +162,7 @@ categoryForm.addEventListener('submit', async (event) => {
     await addDoc(collection(db, 'categories'), {
       title,
       iconUrl: iconUrl || null,
+      parentId,
       order: Date.now(),
       isPremium: false,
       createdAt: serverTimestamp(),
