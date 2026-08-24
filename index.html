@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101828" />
+    <title>لوحة تحكم تطبيق البث</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section id="loading-view" class="card centered-view" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>جارٍ تجهيز لوحة التحكم…</p>
+      </section>
+
+      <section id="login-view" class="card auth-card hidden">
+        <div class="brand-mark">⚽</div>
+        <h1>لوحة تحكم البث الرياضي</h1>
+        <p class="muted">سجّل دخولك بحساب المالك لإدارة التطبيق.</p>
+        <form id="login-form">
+          <label for="email">البريد الإلكتروني</label>
+          <input id="email" type="email" autocomplete="email" required />
+          <label for="password">كلمة المرور</label>
+          <input id="password" type="password" autocomplete="current-password" required />
+          <p id="login-error" class="form-error" role="alert"></p>
+          <button id="login-button" type="submit">تسجيل الدخول</button>
+        </form>
+      </section>
+
+      <section id="dashboard-view" class="dashboard hidden">
+        <header class="topbar card">
+          <div>
+            <p class="eyebrow">لوحة التحكم</p>
+            <h1>مرحباً، <span id="owner-email"></span></h1>
+          </div>
+          <button id="logout-button" class="secondary-button" type="button">تسجيل الخروج</button>
+        </header>
+
+        <section class="welcome card">
+          <span class="step-label">تم تجهيز الجزء الأول</span>
+          <h2>تم ربط بوابة المالك بنجاح</h2>
+          <p>سيظهر هنا في الجزء التالي قسم إدارة الأقسام، ثم إدارة القنوات.</p>
+        </section>
+
+        <section class="coming-grid" aria-label="خطوات قادمة">
+          <article class="card coming-item"><span>01</span><h2>إدارة الأقسام</h2><p>إضافة وتعديل وحذف وترتيب الأقسام.</p></article>
+          <article class="card coming-item"><span>02</span><h2>إدارة القنوات</h2><p>ربط القناة بالقسم وتحديث بياناتها.</p></article>
+          <article class="card coming-item"><span>03</span><h2>الثيم والإعدادات</h2><p>ألوان التطبيق وخلفيته من اللوحة.</p></article>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
