@@ -7,10 +7,12 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
   collection,
+  addDoc,
   getFirestore,
   onSnapshot,
   orderBy,
   query,
+  serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // إعدادات تطبيق الويب من مشروع Firebase نفسه. لا تضع هنا كلمات مرور المستخدمين.
@@ -40,6 +42,9 @@ const categoriesError = document.querySelector('#categories-error');
 const categoriesEmpty = document.querySelector('#categories-empty');
 const categoriesList = document.querySelector('#categories-list');
 const categoriesCount = document.querySelector('#categories-count');
+const categoryForm = document.querySelector('#category-form');
+const categorySaveButton = document.querySelector('#category-save-button');
+const categoryFormMessage = document.querySelector('#category-form-message');
 let stopWatchingCategories = null;
 
 function showView(name) {
@@ -125,3 +130,32 @@ loginForm.addEventListener('submit', async (event) => {
 });
 
 document.querySelector('#logout-button').addEventListener('click', () => signOut(auth));
+
+categoryForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const title = categoryForm.elements.title.value.trim();
+  const iconUrl = categoryForm.elements.image.value.trim();
+  if (!title) return;
+
+  categoryFormMessage.textContent = '';
+  categoryFormMessage.classList.remove('error');
+  categorySaveButton.disabled = true;
+  categorySaveButton.textContent = 'جارٍ الإضافة…';
+  try {
+    await addDoc(collection(db, 'categories'), {
+      title,
+      iconUrl: iconUrl || null,
+      order: Date.now(),
+      isPremium: false,
+      createdAt: serverTimestamp(),
+    });
+    categoryForm.reset();
+    categoryFormMessage.textContent = 'تمت إضافة القسم. سيظهر فوراً في قائمة الأقسام والتطبيق.';
+  } catch (error) {
+    categoryFormMessage.textContent = 'تعذر حفظ القسم. تأكد أنك دخلت بحساب المالك ثم أعد المحاولة.';
+    categoryFormMessage.classList.add('error');
+  } finally {
+    categorySaveButton.disabled = false;
+    categorySaveButton.textContent = 'إضافة القسم';
+  }
+});

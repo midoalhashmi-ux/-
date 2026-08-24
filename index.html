@@ -39,11 +39,30 @@
 
         <section class="section-heading">
           <div>
-            <p class="eyebrow">إدارة المحتوى · الجزء 1</p>
+            <p class="eyebrow">إدارة المحتوى · إضافة قسم رئيسي</p>
             <h2>الأقسام الحالية</h2>
-            <p class="muted">هذه القائمة للعرض فقط في هذه المرحلة.</p>
+            <p class="muted">أضف اسماً وصورة خلفية للقسم.</p>
           </div>
           <span id="categories-count" class="count-badge">جارٍ التحميل…</span>
+        </section>
+
+        <section class="card category-form-card">
+          <div>
+            <h2>إضافة قسم جديد</h2>
+            <p class="muted">مثال: كرة القدم أو القنوات الرياضية.</p>
+          </div>
+          <form id="category-form" class="category-form">
+            <div>
+              <label for="category-title">اسم القسم</label>
+              <input id="category-title" name="title" type="text" maxlength="50" placeholder="مثال: كرة القدم" required />
+            </div>
+            <div>
+              <label for="category-image">رابط صورة الخلفية <span class="optional-label">اختياري</span></label>
+              <input id="category-image" name="image" type="url" placeholder="https://example.com/image.jpg" />
+            </div>
+            <p id="category-form-message" class="form-message" role="status"></p>
+            <button id="category-save-button" type="submit">إضافة القسم</button>
+          </form>
         </section>
 
         <section id="categories-loading" class="card loading-card">
@@ -60,7 +79,7 @@
 
         <section class="next-step card">
           <span>الخطوة القادمة</span>
-          <p>إضافة أول قسم من لوحة التحكم.</p>
+          <p>الأقسام الفرعية وتعديل الاسم.</p>
         </section>
       </section>
     </main>
