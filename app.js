@@ -8,11 +8,14 @@ import {
 import {
   collection,
   addDoc,
+  deleteDoc,
+  doc,
+  getDocs,
   getFirestore,
-  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
+  updateDoc,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // إعدادات تطبيق الويب من مشروع Firebase نفسه. لا تضع هنا كلمات مرور المستخدمين.
@@ -50,7 +53,7 @@ const categoriesTitle = document.querySelector('#categories-title');
 const categoriesContext = document.querySelector('#categories-context');
 const categoryFormTitle = document.querySelector('#category-form-title');
 const backToRoot = document.querySelector('#back-to-root');
-let stopWatchingCategories = null;
+const retryCategories = document.querySelector('#retry-categories');
 let currentCategories = [];
 let currentParentId = null;
 
@@ -65,6 +68,7 @@ function resetCategories() {
   categoriesList.classList.add('hidden');
   categoriesList.innerHTML = '';
   categoriesCount.textContent = 'جارٍ التحميل…';
+  retryCategories.classList.add('hidden');
 }
 
 function showCategories(categories) {
@@ -103,7 +107,7 @@ function renderCurrentCategoryView() {
       ? `<img class="category-image" src="${escapeHtml(category.iconUrl)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'category-image-placeholder', textContent: '⚽'}))">`
       : '<div class="category-image-placeholder" aria-hidden="true">⚽</div>';
     const childrenCount = currentCategories.filter((item) => item.parentId === id).length;
-    return `<article class="card category-card">${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${childrenCount ? `${childrenCount} أقسام داخلية` : 'لا توجد أقسام داخلية'}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p><button class="open-category-button" type="button" data-open-category="${escapeHtml(id)}">فتح القسم</button></div></article>`;
+    return `<article class="card category-card">${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${childrenCount ? `${childrenCount} أقسام داخلية` : 'لا توجد أقسام داخلية'}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p><button class="open-category-button" type="button" data-open-category="${escapeHtml(id)}">فتح القسم</button><div class="category-tools"><button type="button" data-edit-category="${escapeHtml(id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-category="${escapeHtml(id)}">حذف</button></div></div></article>`;
   }).join('');
   categoriesList.classList.remove('hidden');
 }
@@ -114,29 +118,33 @@ function escapeHtml(value) {
   }[character]));
 }
 
-function watchCategories() {
-  stopWatchingCategories?.();
+async function loadCategories() {
   resetCategories();
   const categoriesQuery = query(collection(db, 'categories'), orderBy('order'));
-  stopWatchingCategories = onSnapshot(categoriesQuery, (snapshot) => {
+  try {
+    const snapshot = await Promise.race([
+      getDocs(categoriesQuery),
+      new Promise((_, reject) => window.setTimeout(
+        () => reject(new Error('timeout')), 12000,
+      )),
+    ]);
     showCategories(snapshot.docs.map((document) => ({ id: document.id, ...document.data() })));
-  }, () => {
+  } catch (_) {
     categoriesLoading.classList.add('hidden');
     categoriesCount.textContent = 'تعذر التحميل';
-    categoriesError.textContent = 'تعذر قراءة الأقسام. تأكد من قواعد Firestore، ثم أعد فتح الصفحة.';
+    categoriesError.textContent = 'تعذر الاتصال بقاعدة الأقسام. اضغط زر إعادة المحاولة. إذا تكرر الخطأ، أعد تسجيل الدخول ثم جرّب مرة أخرى.';
     categoriesError.classList.remove('hidden');
-  });
+    retryCategories.classList.remove('hidden');
+  }
 }
 
 onAuthStateChanged(auth, (user) => {
   if (user) {
     document.querySelector('#owner-email').textContent = user.email || 'المالك';
     showView('dashboard');
-    watchCategories();
+    loadCategories();
     return;
   }
-  stopWatchingCategories?.();
-  stopWatchingCategories = null;
   showView('login');
 });
 
@@ -156,14 +164,35 @@ loginForm.addEventListener('submit', async (event) => {
 });
 
 document.querySelector('#logout-button').addEventListener('click', () => signOut(auth));
+retryCategories.addEventListener('click', loadCategories);
 
 categoriesList.addEventListener('click', (event) => {
+  const edit = event.target.closest('[data-edit-category]');
+  const remove = event.target.closest('[data-delete-category]');
+  if (edit) return editCategory(edit.dataset.editCategory);
+  if (remove) return deleteCategory(remove.dataset.deleteCategory);
   const button = event.target.closest('[data-open-category]');
   if (!button) return;
   currentParentId = button.dataset.openCategory;
   categoryFormMessage.textContent = '';
   renderCurrentCategoryView();
 });
+
+async function editCategory(id) {
+  const category = currentCategories.find((item) => item.id === id);
+  const title = window.prompt('الاسم الجديد:', category?.title || '');
+  if (!title?.trim()) return;
+  try { await updateDoc(doc(db, 'categories', id), { title: title.trim() }); await loadCategories(); }
+  catch (_) { window.alert('تعذر التعديل.'); }
+}
+
+async function deleteCategory(id) {
+  const category = currentCategories.find((item) => item.id === id);
+  if (currentCategories.some((item) => item.parentId === id)) return window.alert('لا يمكن حذف قسم يحتوي أقساماً داخلية.');
+  if (!window.confirm(`حذف «${category?.title || ''}»؟`)) return;
+  try { await deleteDoc(doc(db, 'categories', id)); await loadCategories(); }
+  catch (_) { window.alert('تعذر الحذف.'); }
+}
 
 backToRoot.addEventListener('click', () => {
   currentParentId = null;
@@ -194,6 +223,7 @@ categoryForm.addEventListener('submit', async (event) => {
     categoryForm.reset();
     categoryParent.value = currentParentId || '';
     categoryFormMessage.textContent = 'تمت إضافة القسم. سيظهر فوراً في قائمة الأقسام والتطبيق.';
+    await loadCategories();
   } catch (error) {
     categoryFormMessage.textContent = 'تعذر حفظ القسم. تأكد أنك دخلت بحساب المالك ثم أعد المحاولة.';
     categoryFormMessage.classList.add('error');

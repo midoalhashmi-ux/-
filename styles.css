@@ -46,10 +46,13 @@ button:disabled { opacity: .65; cursor: wait; }
 .form-message { grid-column: 1 / -1; min-height: 0; margin: 0; color: #86efac; line-height: 1.5; }
 .form-message.error { color: #fca5a5; }
 .open-category-button { width: 100%; margin-top: 14px; color: #bfe8ff; background: transparent; border: 1px solid #3a4d6b; }
+.category-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.delete-category-button { color: #fecaca; background: transparent; border: 1px solid #7f1d1d; }
 .loading-card, .message-card { padding: 30px; text-align: center; }
 .loading-card p { margin: 12px 0 0; color: #b6c5dc; }
 .message-card p { margin-bottom: 0; color: #a9b9d1; }
 .error-card { color: #fecaca; border-color: #7f1d1d; background: #2a1017; }
+.retry-button { display: block; margin: 12px auto; }
 .categories-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .category-card { overflow: hidden; }
 .category-image { display: block; width: 100%; height: 145px; object-fit: cover; background: #1e293b; }
