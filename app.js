@@ -57,22 +57,28 @@ const categoryFormTitle = document.querySelector('#category-form-title');
 const backToRoot = document.querySelector('#back-to-root');
 const retryCategories = document.querySelector('#retry-categories');
 const navButtons = document.querySelectorAll('[data-panel]');
+const addMenuButton = document.querySelector('#add-menu-button');
+const addMenu = document.querySelector('#add-menu');
+const addMenuCategoryLabel = document.querySelector('#add-menu-category-label');
+const addMenuChannelItem = document.querySelector('[data-add-type="channel"]');
+const categoryFormCard = document.querySelector('#category-form-card');
+const categoryFormClose = document.querySelector('#category-form-close');
+const channelFormCard = document.querySelector('#channel-form-card');
+const channelFormClose = document.querySelector('#channel-form-close');
 const channelForm = document.querySelector('#channel-form');
 const channelCategory = document.querySelector('#channel-category');
 const channelTitle = document.querySelector('#channel-title');
 const channelSubtitle = document.querySelector('#channel-subtitle');
 const channelStatus = document.querySelector('#channel-status');
 const channelLogo = document.querySelector('#channel-logo');
-const channelSourceType = document.querySelector('#channel-source-type');
-const channelSourceUrl = document.querySelector('#channel-source-url');
 const channelPlayerKey = document.querySelector('#channel-player-key');
 const channelEditId = document.querySelector('#channel-edit-id');
 const channelFormTitle = document.querySelector('#channel-form-title');
 const channelSaveButton = document.querySelector('#channel-save-button');
 const channelCancelButton = document.querySelector('#channel-cancel-button');
 const channelFormMessage = document.querySelector('#channel-form-message');
-const channelsSection = document.querySelector('#channels-section');
 const channelsRootHint = document.querySelector('#channels-root-hint');
+const channelsSection = document.querySelector('#channels-section');
 const channelsTitle = document.querySelector('#channels-title');
 const channelsList = document.querySelector('#channels-list');
 const channelsLoading = document.querySelector('#channels-loading');
@@ -117,6 +123,7 @@ function renderCurrentCategoryView() {
     ? 'اختر قسماً لعرض ما بداخله، أو أضف قسماً رئيسياً.'
     : `كل قسم تضيفه هنا يصبح فرعياً داخل «${parentTitle}».`;
   categoryFormTitle.textContent = isRoot ? 'إضافة قسم رئيسي' : `إضافة قسم داخل «${parentTitle}»`;
+  addMenuCategoryLabel.textContent = isRoot ? 'قسم رئيسي' : 'قسم فرعي';
   categoryParent.value = currentParentId || '';
   backToRoot.classList.toggle('hidden', isRoot);
   categoriesCount.textContent = `${visibleCategories.length} قسم`;
@@ -188,15 +195,13 @@ async function loadChannels() {
   }
 }
 
-function sourceTypeLabel(sourceType) {
-  return sourceType === 'temporary' ? 'رابط موقت' : 'رابط مباشر';
-}
-
 function renderChannelsForCurrentCategory() {
   const isRoot = currentParentId === null;
   channelsRootHint.classList.toggle('hidden', !isRoot);
   channelsSection.classList.toggle('hidden', isRoot);
   channelCategory.value = currentParentId || '';
+  addMenuChannelItem.disabled = isRoot;
+  addMenuChannelItem.title = isRoot ? 'افتح قسماً أولاً لإضافة قناة إليه' : '';
   if (isRoot) return;
 
   const category = currentCategories.find((item) => item.id === currentParentId);
@@ -204,6 +209,7 @@ function renderChannelsForCurrentCategory() {
 
   const channelsInCategory = currentChannels.filter((channel) => channel.categoryId === currentParentId);
   channelsCount.textContent = `${channelsInCategory.length} قناة`;
+  channelsLoading.classList.add('hidden');
 
   if (!channelsInCategory.length) {
     channelsEmpty.classList.remove('hidden');
@@ -214,12 +220,63 @@ function renderChannelsForCurrentCategory() {
   channelsEmpty.classList.add('hidden');
   channelsList.innerHTML = channelsInCategory.map((channel) => {
     const logo = channel.logoUrl ? `<img class="channel-logo" src="${escapeHtml(channel.logoUrl)}" alt="">` : '<div class="channel-logo category-image-placeholder">⚽</div>';
-    const sourceBadge = channel.sourceUrl
-      ? `<span class="source-badge ${channel.sourceType === 'temporary' ? 'source-badge-temp' : ''}">${escapeHtml(sourceTypeLabel(channel.sourceType))}</span>`
-      : '<span class="source-badge source-badge-missing">بدون مصدر</span>';
-    return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p><p class="channel-source-meta">${sourceBadge}</p></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
+    return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p><div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
   }).join('');
   channelsList.classList.remove('hidden');
+  loadChannelSources(channelsInCategory);
+}
+
+// مصادر البث الحقيقية (روابط m3u8) محفوظة في مجموعة منفصلة privateStreams
+// لا يقرأها تطبيق المحتوى أبداً — فقط لوحة التحكم (بعد تسجيل الدخول) والـ Cloud Function.
+// القنوات غير المحمية تُحفظ مباشرة داخل channels.directUrl (قراءة عامة، بدون تأخير التوكن).
+async function loadChannelSources(channels) {
+  await Promise.all(channels.map(async (channel) => {
+    const input = document.querySelector(`[data-source-input="${channel.id}"]`);
+    const status = document.querySelector(`[data-source-status="${channel.id}"]`);
+    if (!input) return;
+    const isProtected = channel.protected !== false;
+    if (!isProtected) {
+      if (channel.directUrl) { input.value = channel.directUrl; if (status) status.textContent = 'محفوظ بدون حماية (بدون تأخير)'; }
+      return;
+    }
+    try {
+      const snapshot = await getDoc(doc(db, 'privateStreams', channel.id));
+      const data = snapshot.data();
+      if (data?.url) {
+        input.value = data.url;
+        if (status) status.textContent = 'محفوظ ومحمي برابط مؤقت';
+      }
+    } catch (_) {
+      if (status) status.textContent = 'تعذر تحميل المصدر الحالي';
+    }
+  }));
+}
+
+async function saveChannelSource(channelId) {
+  const input = document.querySelector(`[data-source-input="${channelId}"]`);
+  const status = document.querySelector(`[data-source-status="${channelId}"]`);
+  const button = document.querySelector(`[data-save-source="${channelId}"]`);
+  const protectedToggle = document.querySelector(`[data-protected-toggle="${channelId}"]`);
+  if (!input) return;
+  const url = input.value.trim();
+  if (!url) { if (status) { status.textContent = 'الصق رابط m3u8 أولاً'; status.classList.add('error'); } return; }
+  const isProtected = protectedToggle ? protectedToggle.checked : true;
+  if (button) { button.disabled = true; button.textContent = 'جارٍ الحفظ…'; }
+  if (status) status.classList.remove('error');
+  try {
+    if (isProtected) {
+      await setDoc(doc(db, 'privateStreams', channelId), { url, updatedAt: serverTimestamp() }, { merge: true });
+      await updateDoc(doc(db, 'channels', channelId), { protected: true, directUrl: null });
+      if (status) status.textContent = 'تم الحفظ ✓ محمي برابط مؤقت';
+    } else {
+      await updateDoc(doc(db, 'channels', channelId), { protected: false, directUrl: url });
+      if (status) status.textContent = 'تم الحفظ ✓ بدون حماية — تشغيل فوري بدون تأخير';
+    }
+  } catch (_) {
+    if (status) { status.textContent = 'تعذر الحفظ. تحقق من قواعد Firestore.'; status.classList.add('error'); }
+  } finally {
+    if (button) { button.disabled = false; button.textContent = 'حفظ المصدر'; }
+  }
 }
 
 async function loadPlayerSettings() {
@@ -268,6 +325,45 @@ navButtons.forEach((button) => button.addEventListener('click', () => {
   document.querySelectorAll('.admin-panel').forEach((panel) => panel.classList.toggle('hidden', panel.id !== button.dataset.panel));
 }));
 
+function closeAddMenu() {
+  addMenu.classList.add('hidden');
+  addMenuButton.setAttribute('aria-expanded', 'false');
+}
+
+addMenuButton.addEventListener('click', (event) => {
+  event.stopPropagation();
+  const willOpen = addMenu.classList.contains('hidden');
+  closeAddMenu();
+  if (willOpen) {
+    addMenu.classList.remove('hidden');
+    addMenuButton.setAttribute('aria-expanded', 'true');
+  }
+});
+
+document.addEventListener('click', (event) => {
+  if (!addMenu.classList.contains('hidden') && !event.target.closest('.add-menu-wrap')) closeAddMenu();
+});
+
+addMenu.addEventListener('click', (event) => {
+  const item = event.target.closest('[data-add-type]');
+  if (!item || item.disabled) return;
+  closeAddMenu();
+  if (item.dataset.addType === 'category') {
+    channelFormCard.classList.add('hidden');
+    categoryFormCard.classList.remove('hidden');
+    categoryFormCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.querySelector('#category-title').focus();
+  } else if (item.dataset.addType === 'channel') {
+    categoryFormCard.classList.add('hidden');
+    channelFormCard.classList.remove('hidden');
+    channelFormCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    channelTitle.focus();
+  }
+});
+
+categoryFormClose.addEventListener('click', () => categoryFormCard.classList.add('hidden'));
+channelFormClose.addEventListener('click', () => { channelFormCard.classList.add('hidden'); resetChannelForm(); });
+
 categoriesList.addEventListener('click', (event) => {
   const edit = event.target.closest('[data-edit-category]');
   const remove = event.target.closest('[data-delete-category]');
@@ -277,6 +373,8 @@ categoriesList.addEventListener('click', (event) => {
   if (!button) return;
   currentParentId = button.dataset.openCategory;
   categoryFormMessage.textContent = '';
+  categoryFormCard.classList.add('hidden');
+  channelFormCard.classList.add('hidden');
   resetChannelForm();
   renderCurrentCategoryView();
   renderChannelsForCurrentCategory();
@@ -302,6 +400,8 @@ async function deleteCategory(id) {
 backToRoot.addEventListener('click', () => {
   currentParentId = null;
   categoryFormMessage.textContent = '';
+  categoryFormCard.classList.add('hidden');
+  channelFormCard.classList.add('hidden');
   resetChannelForm();
   renderCurrentCategoryView();
   renderChannelsForCurrentCategory();
@@ -347,18 +447,8 @@ function resetChannelForm() {
 
 channelForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (!currentParentId || !channelTitle.value.trim() || !channelSourceUrl.value.trim()) return;
-  const data = {
-    categoryId: currentParentId,
-    title: channelTitle.value.trim(),
-    subtitle: channelSubtitle.value.trim(),
-    status: channelStatus.value,
-    logoUrl: channelLogo.value.trim() || null,
-    sourceUrl: channelSourceUrl.value.trim(),
-    sourceType: channelSourceType.value,
-    playerChannelKey: channelPlayerKey.value.trim() || null,
-    updatedAt: serverTimestamp(),
-  };
+  if (!currentParentId || !channelTitle.value.trim()) return;
+  const data = { categoryId: currentParentId, title: channelTitle.value.trim(), subtitle: channelSubtitle.value.trim(), status: channelStatus.value, logoUrl: channelLogo.value.trim() || null, playerChannelKey: channelPlayerKey.value.trim() || null, updatedAt: serverTimestamp() };
   channelSaveButton.disabled = true;
   try {
     if (channelEditId.value) await updateDoc(doc(db, 'channels', channelEditId.value), data);
@@ -369,25 +459,18 @@ channelForm.addEventListener('submit', async (event) => {
 });
 channelCancelButton.addEventListener('click', resetChannelForm);
 channelsList.addEventListener('click', async (event) => {
-  const edit = event.target.closest('[data-edit-channel]'); const remove = event.target.closest('[data-delete-channel]');
+  const edit = event.target.closest('[data-edit-channel]'); const remove = event.target.closest('[data-delete-channel]'); const saveSource = event.target.closest('[data-save-source]');
   if (edit) {
     const channel = currentChannels.find((item) => item.id === edit.dataset.editChannel);
     if (!channel) return;
-    channelEditId.value = channel.id;
-    channelCategory.value = channel.categoryId || currentParentId || '';
-    channelTitle.value = channel.title || '';
-    channelSubtitle.value = channel.subtitle || '';
-    channelStatus.value = channel.status || 'upcoming';
-    channelLogo.value = channel.logoUrl || '';
-    channelSourceType.value = channel.sourceType || 'direct';
-    channelSourceUrl.value = channel.sourceUrl || '';
-    channelPlayerKey.value = channel.playerChannelKey || '';
-    channelFormTitle.textContent = `تعديل: ${channel.title}`;
-    channelSaveButton.textContent = 'حفظ التعديل';
-    channelCancelButton.classList.remove('hidden');
+    categoryFormCard.classList.add('hidden');
+    channelFormCard.classList.remove('hidden');
+    channelEditId.value = channel.id; channelCategory.value = channel.categoryId || ''; channelTitle.value = channel.title || ''; channelSubtitle.value = channel.subtitle || ''; channelStatus.value = channel.status || 'upcoming'; channelLogo.value = channel.logoUrl || ''; channelPlayerKey.value = channel.playerChannelKey || ''; channelFormTitle.textContent = `تعديل: ${channel.title}`; channelSaveButton.textContent = 'حفظ التعديل'; channelCancelButton.classList.remove('hidden');
+    channelFormCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
-  if (remove) { const channel = currentChannels.find((item) => item.id === remove.dataset.deleteChannel); if (!window.confirm(`حذف «${channel?.title || ''}»؟`)) return; try { await deleteDoc(doc(db, 'channels', remove.dataset.deleteChannel)); await loadChannels(); } catch (_) { window.alert('تعذر الحذف.'); } }
+  if (remove) { const channel = currentChannels.find((item) => item.id === remove.dataset.deleteChannel); if (!window.confirm(`حذف «${channel?.title || ''}»؟`)) return; try { await deleteDoc(doc(db, 'channels', remove.dataset.deleteChannel)); await loadChannels(); } catch (_) { window.alert('تعذر الحذف.'); } return; }
+  if (saveSource) { await saveChannelSource(saveSource.dataset.saveSource); }
 });
 
 document.querySelector('#theme-form').addEventListener('submit', async (event) => {
