@@ -39,7 +39,6 @@
 
         <nav class="admin-nav" aria-label="إدارة اللوحة">
           <button class="nav-button active" type="button" data-panel="categories-panel">الأقسام</button>
-          <button class="nav-button" type="button" data-panel="channels-panel">القنوات</button>
           <button class="nav-button" type="button" data-panel="settings-panel">ألوان التطبيق</button>
         </nav>
 
@@ -90,27 +89,27 @@
         </section>
         <section id="categories-list" class="categories-grid hidden" aria-label="قائمة الأقسام"></section>
 
-        <section class="next-step card">
-          <span>الخطوة القادمة</span>
-          <p>الأقسام الفرعية وتعديل الاسم.</p>
-        </section>
-        </section>
-
-        <section id="channels-panel" class="admin-panel hidden">
+        <section id="channels-section" class="hidden">
           <section class="section-heading">
-            <div><p class="eyebrow">إدارة المحتوى</p><h2>القنوات</h2><p class="muted">اربط كل قناة بالقسم الفرعي المناسب.</p></div>
+            <div>
+              <p class="eyebrow">إدارة المحتوى · قنوات هذا القسم</p>
+              <h2 id="channels-title">قنوات القسم</h2>
+              <p class="muted">تُضاف القنوات هنا وتنتمي تلقائياً للقسم المفتوح حالياً.</p>
+            </div>
             <span id="channels-count" class="count-badge">جارٍ التحميل…</span>
           </section>
           <section class="card category-form-card channel-form-card">
-            <div><h2 id="channel-form-title">إضافة قناة</h2><p class="muted">بيانات العرض فقط؛ رابط البث الآمن مرحلة لاحقة.</p></div>
+            <div><h2 id="channel-form-title">إضافة قناة</h2><p class="muted">حدد مصدر البث ونوعه لكل قناة.</p></div>
             <form id="channel-form" class="channel-form">
               <input id="channel-edit-id" type="hidden" />
-              <div><label for="channel-category">القسم</label><select id="channel-category" required></select></div>
+              <input id="channel-category" type="hidden" />
               <div><label for="channel-title">اسم القناة</label><input id="channel-title" required maxlength="50" placeholder="مثال: SSC 1" /></div>
               <div><label for="channel-subtitle">وصف مختصر</label><input id="channel-subtitle" maxlength="90" placeholder="مثال: مباريات مباشرة" /></div>
               <div><label for="channel-status">الحالة</label><select id="channel-status"><option value="live">مباشر الآن</option><option value="upcoming">قريباً</option><option value="ended">انتهى</option></select></div>
               <div><label for="channel-logo">رابط الشعار <span class="optional-label">اختياري</span></label><input id="channel-logo" type="url" placeholder="https://example.com/logo.png" /></div>
-              <div><label for="channel-player-key">مفتاح القناة في المشغل <span class="optional-label">اختياري حالياً</span></label><input id="channel-player-key" maxlength="80" placeholder="مثال: ssc-1-hd" /></div>
+              <div><label for="channel-source-type">نوع رابط المصدر</label><select id="channel-source-type"><option value="direct">رابط مباشر (ثابت)</option><option value="temporary">رابط موقت (صالح لفترة محدودة)</option></select></div>
+              <div><label for="channel-source-url">رابط المصدر</label><input id="channel-source-url" type="url" required placeholder="https://example.com/stream.m3u8" /></div>
+              <div><label for="channel-player-key">مفتاح القناة في المشغل <span class="optional-label">اختياري</span></label><input id="channel-player-key" maxlength="80" placeholder="مثال: ssc-1-hd" /></div>
               <p id="channel-form-message" class="form-message" role="status"></p>
               <button id="channel-save-button" type="submit">إضافة القناة</button>
               <button id="channel-cancel-button" class="secondary-button hidden" type="button">إلغاء التعديل</button>
@@ -119,6 +118,17 @@
           <section id="channels-loading" class="card loading-card"><span class="spinner"></span><p>جارٍ قراءة القنوات…</p></section>
           <section id="channels-empty" class="card message-card hidden"><h2>لا توجد قنوات بعد</h2><p>أضف أول قناة من النموذج أعلاه.</p></section>
           <section id="channels-list" class="channels-list hidden"></section>
+        </section>
+
+        <section id="channels-root-hint" class="card message-card">
+          <h2>افتح قسماً لإدارة قنواته</h2>
+          <p>اضغط «فتح القسم» على أي قسم أعلاه لإضافة القنوات إليه أو تعديلها.</p>
+        </section>
+
+        <section class="next-step card">
+          <span>الخطوة القادمة</span>
+          <p>الأقسام الفرعية وتعديل الاسم.</p>
+        </section>
         </section>
 
         <section id="settings-panel" class="admin-panel hidden">

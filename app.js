@@ -63,12 +63,17 @@ const channelTitle = document.querySelector('#channel-title');
 const channelSubtitle = document.querySelector('#channel-subtitle');
 const channelStatus = document.querySelector('#channel-status');
 const channelLogo = document.querySelector('#channel-logo');
+const channelSourceType = document.querySelector('#channel-source-type');
+const channelSourceUrl = document.querySelector('#channel-source-url');
 const channelPlayerKey = document.querySelector('#channel-player-key');
 const channelEditId = document.querySelector('#channel-edit-id');
 const channelFormTitle = document.querySelector('#channel-form-title');
 const channelSaveButton = document.querySelector('#channel-save-button');
 const channelCancelButton = document.querySelector('#channel-cancel-button');
 const channelFormMessage = document.querySelector('#channel-form-message');
+const channelsSection = document.querySelector('#channels-section');
+const channelsRootHint = document.querySelector('#channels-root-hint');
+const channelsTitle = document.querySelector('#channels-title');
 const channelsList = document.querySelector('#channels-list');
 const channelsLoading = document.querySelector('#channels-loading');
 const channelsEmpty = document.querySelector('#channels-empty');
@@ -93,18 +98,10 @@ function resetCategories() {
 
 function showCategories(categories) {
   currentCategories = categories;
-  fillChannelCategories();
   categoriesLoading.classList.add('hidden');
   categoriesError.classList.add('hidden');
   renderCurrentCategoryView();
-}
-
-function fillChannelCategories() {
-  const priorValue = channelCategory.value;
-  channelCategory.innerHTML = '<option value="">اختر القسم</option>' + currentCategories
-    .map((category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.title || 'قسم بلا اسم')}</option>`)
-    .join('');
-  channelCategory.value = currentCategories.some((category) => category.id === priorValue) ? priorValue : '';
+  renderChannelsForCurrentCategory();
 }
 
 function renderCurrentCategoryView() {
@@ -136,7 +133,11 @@ function renderCurrentCategoryView() {
       ? `<img class="category-image" src="${escapeHtml(category.iconUrl)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'category-image-placeholder', textContent: '⚽'}))">`
       : '<div class="category-image-placeholder" aria-hidden="true">⚽</div>';
     const childrenCount = currentCategories.filter((item) => item.parentId === id).length;
-    return `<article class="card category-card">${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${childrenCount ? `${childrenCount} أقسام داخلية` : 'لا توجد أقسام داخلية'}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p><button class="open-category-button" type="button" data-open-category="${escapeHtml(id)}">فتح القسم</button><div class="category-tools"><button type="button" data-edit-category="${escapeHtml(id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-category="${escapeHtml(id)}">حذف</button></div></div></article>`;
+    const channelsCountForCategory = currentChannels.filter((item) => item.categoryId === id).length;
+    const summary = childrenCount
+      ? `${childrenCount} أقسام داخلية`
+      : (channelsCountForCategory ? `${channelsCountForCategory} قناة` : 'لا توجد قنوات بعد');
+    return `<article class="card category-card">${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${summary}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p><button class="open-category-button" type="button" data-open-category="${escapeHtml(id)}">فتح القسم</button><div class="category-tools"><button type="button" data-edit-category="${escapeHtml(id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-category="${escapeHtml(id)}">حذف</button></div></div></article>`;
   }).join('');
   categoriesList.classList.remove('hidden');
 }
@@ -178,19 +179,47 @@ async function loadChannels() {
     ]);
     currentChannels = snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
     channelsLoading.classList.add('hidden');
-    channelsCount.textContent = `${currentChannels.length} قناة`;
-    if (!currentChannels.length) { channelsEmpty.classList.remove('hidden'); return; }
-    channelsList.innerHTML = currentChannels.map((channel) => {
-      const category = currentCategories.find((item) => item.id === channel.categoryId);
-      const logo = channel.logoUrl ? `<img class="channel-logo" src="${escapeHtml(channel.logoUrl)}" alt="">` : '<div class="channel-logo category-image-placeholder">⚽</div>';
-      return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(category?.title || 'قسم غير محدد')} · ${escapeHtml(channel.subtitle || 'بدون وصف')}</p></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
-    }).join('');
-    channelsList.classList.remove('hidden');
+    renderCurrentCategoryView();
+    renderChannelsForCurrentCategory();
   } catch (_) {
     channelsLoading.classList.add('hidden');
     channelsEmpty.classList.remove('hidden');
     channelsEmpty.innerHTML = '<h2>تعذر تحميل القنوات</h2><p>تأكد من إضافة صلاحية channels في قواعد Firestore أدناه.</p>';
   }
+}
+
+function sourceTypeLabel(sourceType) {
+  return sourceType === 'temporary' ? 'رابط موقت' : 'رابط مباشر';
+}
+
+function renderChannelsForCurrentCategory() {
+  const isRoot = currentParentId === null;
+  channelsRootHint.classList.toggle('hidden', !isRoot);
+  channelsSection.classList.toggle('hidden', isRoot);
+  channelCategory.value = currentParentId || '';
+  if (isRoot) return;
+
+  const category = currentCategories.find((item) => item.id === currentParentId);
+  channelsTitle.textContent = category?.title ? `قنوات قسم: ${category.title}` : 'قنوات القسم';
+
+  const channelsInCategory = currentChannels.filter((channel) => channel.categoryId === currentParentId);
+  channelsCount.textContent = `${channelsInCategory.length} قناة`;
+
+  if (!channelsInCategory.length) {
+    channelsEmpty.classList.remove('hidden');
+    channelsList.classList.add('hidden');
+    return;
+  }
+
+  channelsEmpty.classList.add('hidden');
+  channelsList.innerHTML = channelsInCategory.map((channel) => {
+    const logo = channel.logoUrl ? `<img class="channel-logo" src="${escapeHtml(channel.logoUrl)}" alt="">` : '<div class="channel-logo category-image-placeholder">⚽</div>';
+    const sourceBadge = channel.sourceUrl
+      ? `<span class="source-badge ${channel.sourceType === 'temporary' ? 'source-badge-temp' : ''}">${escapeHtml(sourceTypeLabel(channel.sourceType))}</span>`
+      : '<span class="source-badge source-badge-missing">بدون مصدر</span>';
+    return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p><p class="channel-source-meta">${sourceBadge}</p></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
+  }).join('');
+  channelsList.classList.remove('hidden');
 }
 
 async function loadPlayerSettings() {
@@ -248,7 +277,9 @@ categoriesList.addEventListener('click', (event) => {
   if (!button) return;
   currentParentId = button.dataset.openCategory;
   categoryFormMessage.textContent = '';
+  resetChannelForm();
   renderCurrentCategoryView();
+  renderChannelsForCurrentCategory();
 });
 
 async function editCategory(id) {
@@ -262,6 +293,7 @@ async function editCategory(id) {
 async function deleteCategory(id) {
   const category = currentCategories.find((item) => item.id === id);
   if (currentCategories.some((item) => item.parentId === id)) return window.alert('لا يمكن حذف قسم يحتوي أقساماً داخلية.');
+  if (currentChannels.some((item) => item.categoryId === id)) return window.alert('لا يمكن حذف قسم يحتوي قنوات. احذف قنواته أولاً.');
   if (!window.confirm(`حذف «${category?.title || ''}»؟`)) return;
   try { await deleteDoc(doc(db, 'categories', id)); await loadCategories(); }
   catch (_) { window.alert('تعذر الحذف.'); }
@@ -270,7 +302,9 @@ async function deleteCategory(id) {
 backToRoot.addEventListener('click', () => {
   currentParentId = null;
   categoryFormMessage.textContent = '';
+  resetChannelForm();
   renderCurrentCategoryView();
+  renderChannelsForCurrentCategory();
 });
 
 categoryForm.addEventListener('submit', async (event) => {
@@ -307,14 +341,24 @@ categoryForm.addEventListener('submit', async (event) => {
 });
 
 function resetChannelForm() {
-  channelForm.reset(); channelEditId.value = ''; channelFormTitle.textContent = 'إضافة قناة';
+  channelForm.reset(); channelEditId.value = ''; channelCategory.value = currentParentId || ''; channelFormTitle.textContent = 'إضافة قناة';
   channelSaveButton.textContent = 'إضافة القناة'; channelCancelButton.classList.add('hidden'); channelFormMessage.textContent = '';
 }
 
 channelForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (!channelCategory.value || !channelTitle.value.trim()) return;
-  const data = { categoryId: channelCategory.value, title: channelTitle.value.trim(), subtitle: channelSubtitle.value.trim(), status: channelStatus.value, logoUrl: channelLogo.value.trim() || null, playerChannelKey: channelPlayerKey.value.trim() || null, updatedAt: serverTimestamp() };
+  if (!currentParentId || !channelTitle.value.trim() || !channelSourceUrl.value.trim()) return;
+  const data = {
+    categoryId: currentParentId,
+    title: channelTitle.value.trim(),
+    subtitle: channelSubtitle.value.trim(),
+    status: channelStatus.value,
+    logoUrl: channelLogo.value.trim() || null,
+    sourceUrl: channelSourceUrl.value.trim(),
+    sourceType: channelSourceType.value,
+    playerChannelKey: channelPlayerKey.value.trim() || null,
+    updatedAt: serverTimestamp(),
+  };
   channelSaveButton.disabled = true;
   try {
     if (channelEditId.value) await updateDoc(doc(db, 'channels', channelEditId.value), data);
@@ -326,7 +370,23 @@ channelForm.addEventListener('submit', async (event) => {
 channelCancelButton.addEventListener('click', resetChannelForm);
 channelsList.addEventListener('click', async (event) => {
   const edit = event.target.closest('[data-edit-channel]'); const remove = event.target.closest('[data-delete-channel]');
-  if (edit) { const channel = currentChannels.find((item) => item.id === edit.dataset.editChannel); if (!channel) return; channelEditId.value = channel.id; channelCategory.value = channel.categoryId || ''; channelTitle.value = channel.title || ''; channelSubtitle.value = channel.subtitle || ''; channelStatus.value = channel.status || 'upcoming'; channelLogo.value = channel.logoUrl || ''; channelPlayerKey.value = channel.playerChannelKey || ''; channelFormTitle.textContent = `تعديل: ${channel.title}`; channelSaveButton.textContent = 'حفظ التعديل'; channelCancelButton.classList.remove('hidden'); return; }
+  if (edit) {
+    const channel = currentChannels.find((item) => item.id === edit.dataset.editChannel);
+    if (!channel) return;
+    channelEditId.value = channel.id;
+    channelCategory.value = channel.categoryId || currentParentId || '';
+    channelTitle.value = channel.title || '';
+    channelSubtitle.value = channel.subtitle || '';
+    channelStatus.value = channel.status || 'upcoming';
+    channelLogo.value = channel.logoUrl || '';
+    channelSourceType.value = channel.sourceType || 'direct';
+    channelSourceUrl.value = channel.sourceUrl || '';
+    channelPlayerKey.value = channel.playerChannelKey || '';
+    channelFormTitle.textContent = `تعديل: ${channel.title}`;
+    channelSaveButton.textContent = 'حفظ التعديل';
+    channelCancelButton.classList.remove('hidden');
+    return;
+  }
   if (remove) { const channel = currentChannels.find((item) => item.id === remove.dataset.deleteChannel); if (!window.confirm(`حذف «${channel?.title || ''}»؟`)) return; try { await deleteDoc(doc(db, 'channels', remove.dataset.deleteChannel)); await loadChannels(); } catch (_) { window.alert('تعذر الحذف.'); } }
 });
 

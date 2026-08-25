@@ -67,6 +67,10 @@ button:disabled { opacity: .65; cursor: wait; }
 .channel-info { flex: 1; }
 .channel-info h3, .channel-info p { margin: 0; }
 .channel-info p { color: #9fb2cc; font-size: .85rem; margin-top: 5px; }
+.channel-source-meta { margin-top: 8px !important; }
+.source-badge { display: inline-block; padding: 3px 10px; color: #bbf7d0; background: #14532d; border-radius: 99px; font-size: .78rem; }
+.source-badge-temp { color: #fde68a; background: #4a3510; }
+.source-badge-missing { color: #fca5a5; background: #3f1720; }
 .channel-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .category-card { overflow: hidden; }
 .category-image { display: block; width: 100%; height: 145px; object-fit: cover; background: #1e293b; }
