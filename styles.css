@@ -35,6 +35,8 @@ button:disabled { opacity: .65; cursor: wait; }
 .admin-nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
 .nav-button { color: #cbd5e1; background: #17233a; border: 1px solid #3a4d6b; }
 .nav-button.active { color: #082f49; background: #7dd3fc; border-color: #7dd3fc; }
+.nav-button #messages-badge { margin-right: 6px; padding: 1px 8px; font-size: .72rem; background: #dc2626; color: #fff; }
+.message-item { align-items: flex-start; }
 .eyebrow, .step-label { color: #7dd3fc; font-size: .82rem; margin-bottom: 6px; }
 .section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin: 28px 0 14px; }
 .section-actions { display: flex; align-items: center; gap: 10px; position: relative; }

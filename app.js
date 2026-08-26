@@ -13,6 +13,7 @@ import {
   getDocs,
   getDoc,
   getFirestore,
+  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
@@ -84,9 +85,16 @@ const channelsList = document.querySelector('#channels-list');
 const channelsLoading = document.querySelector('#channels-loading');
 const channelsEmpty = document.querySelector('#channels-empty');
 const channelsCount = document.querySelector('#channels-count');
+const messagesLoading = document.querySelector('#messages-loading');
+const messagesError = document.querySelector('#messages-error');
+const messagesEmpty = document.querySelector('#messages-empty');
+const messagesList = document.querySelector('#messages-list');
+const messagesCount = document.querySelector('#messages-count');
+const messagesBadge = document.querySelector('#messages-badge');
 let currentChannels = [];
 let currentCategories = [];
 let currentParentId = null;
+let unsubscribeMessages = null;
 
 function showView(name) {
   Object.entries(views).forEach(([key, element]) => element.classList.toggle('hidden', key !== name));
@@ -279,6 +287,87 @@ async function saveChannelSource(channelId) {
   }
 }
 
+// رسائل "تواصل معنا" و"الإبلاغ عن رابط معطوب" — استماع لحظي حتى تظهر
+// الرسائل الجديدة فور وصولها دون الحاجة لإعادة تحميل الصفحة.
+function watchMessages() {
+  if (unsubscribeMessages) return;
+  messagesLoading.classList.remove('hidden');
+  messagesError.classList.add('hidden');
+  const messagesQuery = query(collection(db, 'contactMessages'), orderBy('createdAt', 'desc'));
+  unsubscribeMessages = onSnapshot(
+    messagesQuery,
+    (snapshot) => {
+      const messages = snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
+      renderMessages(messages);
+    },
+    () => {
+      messagesLoading.classList.add('hidden');
+      messagesCount.textContent = 'تعذر التحميل';
+      messagesError.textContent = 'تعذر الاتصال بمجموعة الرسائل. تأكد من نشر قواعد Firestore الجديدة (contactMessages) ثم أعد تسجيل الدخول.';
+      messagesError.classList.remove('hidden');
+    },
+  );
+}
+
+function formatMessageDate(timestamp) {
+  if (!timestamp?.toDate) return '';
+  return timestamp.toDate().toLocaleString('ar', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function renderMessages(messages) {
+  messagesLoading.classList.add('hidden');
+  messagesError.classList.add('hidden');
+  const newCount = messages.filter((item) => item.status !== 'read').length;
+  messagesCount.textContent = `${messages.length} رسالة${newCount ? ` (${newCount} جديدة)` : ''}`;
+  if (newCount) {
+    messagesBadge.textContent = String(newCount);
+    messagesBadge.classList.remove('hidden');
+  } else {
+    messagesBadge.classList.add('hidden');
+  }
+  if (!messages.length) {
+    messagesEmpty.classList.remove('hidden');
+    messagesList.classList.add('hidden');
+    return;
+  }
+  messagesEmpty.classList.add('hidden');
+  messagesList.innerHTML = messages.map((item) => {
+    const isRead = item.status === 'read';
+    const typeLabel = item.type === 'broken_link' ? '🔗 رابط معطوب' : '💬 استفسار عام';
+    const channelInfo = item.channelInfo ? `<p><strong>القناة/القسم:</strong> ${escapeHtml(item.channelInfo)}</p>` : '';
+    return `<article class="card channel-item message-item">
+      <div class="channel-info">
+        <h3>${typeLabel} ${isRead ? '' : '<span class="premium-tag">جديدة</span>'}</h3>
+        ${channelInfo}
+        <p>${escapeHtml(item.message || '')}</p>
+        <p class="muted" style="font-size:.78rem;margin-top:6px;">${formatMessageDate(item.createdAt)}</p>
+      </div>
+      <div class="channel-actions">
+        <button type="button" data-toggle-read="${escapeHtml(item.id)}">${isRead ? 'إعادة لغير مقروءة' : 'تعليم كمقروءة'}</button>
+        <button class="delete-category-button" type="button" data-delete-message="${escapeHtml(item.id)}">حذف</button>
+      </div>
+    </article>`;
+  }).join('');
+  messagesList.classList.remove('hidden');
+}
+
+messagesList.addEventListener('click', async (event) => {
+  const toggle = event.target.closest('[data-toggle-read]');
+  const remove = event.target.closest('[data-delete-message]');
+  if (toggle) {
+    const id = toggle.dataset.toggleRead;
+    const currentlyRead = toggle.textContent.includes('غير مقروءة');
+    try { await updateDoc(doc(db, 'contactMessages', id), { status: currentlyRead ? 'new' : 'read' }); }
+    catch (_) { window.alert('تعذر تحديث حالة الرسالة.'); }
+    return;
+  }
+  if (remove) {
+    if (!window.confirm('حذف هذه الرسالة نهائياً؟')) return;
+    try { await deleteDoc(doc(db, 'contactMessages', remove.dataset.deleteMessage)); }
+    catch (_) { window.alert('تعذر حذف الرسالة.'); }
+  }
+});
+
 async function loadPlayerSettings() {
   try {
     const snapshot = await getDoc(doc(db, 'settings', 'player'));
@@ -298,8 +387,10 @@ onAuthStateChanged(auth, (user) => {
     loadCategories();
     loadChannels();
     loadPlayerSettings();
+    watchMessages();
     return;
   }
+  if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
   showView('login');
 });
 
