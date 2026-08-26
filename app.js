@@ -380,6 +380,20 @@ async function loadPlayerSettings() {
   }
 }
 
+// الشروط وسياسة الخصوصية — تُقرأ وتُعدّل من settings/legal، ويقرأها تطبيق
+// المحتوى مباشرة عبر legal_service.dart بدون تحديث التطبيق.
+async function loadLegalSettings() {
+  try {
+    const snapshot = await getDoc(doc(db, 'settings', 'legal'));
+    const data = snapshot.data();
+    if (!data) return;
+    document.querySelector('#legal-terms').value = data.terms || '';
+    document.querySelector('#legal-privacy').value = data.privacy || '';
+  } catch (_) {
+    // النصوص اختيارية إلى أن يضيفها المالك أول مرة.
+  }
+}
+
 onAuthStateChanged(auth, (user) => {
   if (user) {
     document.querySelector('#owner-email').textContent = user.email || 'المالك';
@@ -387,6 +401,7 @@ onAuthStateChanged(auth, (user) => {
     loadCategories();
     loadChannels();
     loadPlayerSettings();
+    loadLegalSettings();
     watchMessages();
     return;
   }
@@ -586,5 +601,24 @@ document.querySelector('#player-form').addEventListener('submit', async (event) 
   } catch (_) {
     message.classList.add('error');
     message.textContent = 'تعذر حفظ إعدادات المشغل. تحقق من قواعد Firestore.';
+  }
+});
+
+document.querySelector('#legal-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const message = document.querySelector('#legal-message');
+  const terms = document.querySelector('#legal-terms').value.trim();
+  const privacy = document.querySelector('#legal-privacy').value.trim();
+  message.classList.remove('error');
+  try {
+    await setDoc(doc(db, 'settings', 'legal'), {
+      terms,
+      privacy,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    message.textContent = 'تم حفظ النصوص، وستظهر في التطبيق فوراً.';
+  } catch (_) {
+    message.classList.add('error');
+    message.textContent = 'تعذر حفظ النصوص. تحقق من قواعد Firestore.';
   }
 });

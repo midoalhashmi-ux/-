@@ -24,7 +24,12 @@ form { text-align: right; margin-top: 28px; }
 label { display: block; margin: 18px 0 8px; color: #d7e2f3; }
 input { width: 100%; color: #f8fafc; background: #17233a; border: 1px solid #3a4d6b; border-radius: 10px; padding: 12px; outline: none; }
 select { width: 100%; color: #f8fafc; background: #17233a; border: 1px solid #3a4d6b; border-radius: 10px; padding: 12px; outline: none; }
+textarea { width: 100%; color: #f8fafc; background: #17233a; border: 1px solid #3a4d6b; border-radius: 10px; padding: 12px; outline: none; resize: vertical; min-height: 120px; line-height: 1.6; font: inherit; }
 input:focus { border-color: #38bdf8; }
+textarea:focus { border-color: #38bdf8; }
+.legal-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 0; }
+.legal-form button { grid-column: 1 / -1; height: 45px; }
+@media (max-width: 850px) { .legal-form { grid-template-columns: 1fr; } }
 button { cursor: pointer; border: 0; border-radius: 10px; padding: 12px 18px; font-weight: bold; color: #082f49; background: #38bdf8; }
 form button { width: 100%; margin-top: 12px; }
 button:disabled { opacity: .65; cursor: wait; }
