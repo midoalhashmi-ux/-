@@ -13,7 +13,7 @@ import {
   getDocs,
   getDoc,
   getFirestore,
-  onSnapshot,
+  limit,
   orderBy,
   query,
   serverTimestamp,
@@ -21,11 +21,12 @@ import {
   updateDoc,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
-// عنوان Cloudflare Worker وسر المزامنة — نفس القيم المضبوطة عبر
-// "wrangler secret put" لخدمة /refreshMatches. السر هنا يُرسل فقط من
-// المتصفح (بعد تسجيل دخول المالك) إلى الـ Worker مباشرة، ولا يُخزَّن بقاعدة البيانات.
-const WORKER_BASE_URL = 'https://binsheikh-api.binsheikh.workers.dev';
-const ADMIN_SYNC_SECRET = 'Sh3ikh2026Sports!Admin#Sync99';
+// عنوان Cloudflare Worker (بديل Firebase Cloud Functions — بدون خطة Blaze
+// ولا حساب فوترة سعودي عبر CNTXT). استبدله بالعنوان الحقيقي بعد
+// "wrangler deploy" — راجع cloudflare-worker/README.md.
+const WORKER_BASE_URL = 'https://binsheikh-api.YOUR-SUBDOMAIN.workers.dev';
+// نفس القيمة اللي ضبطتها بأمر: wrangler secret put ADMIN_SYNC_SECRET
+const ADMIN_SYNC_SECRET = 'REPLACE-WITH-YOUR-OWN-SECRET';
 
 // إعدادات تطبيق الويب من مشروع Firebase نفسه. لا تضع هنا كلمات مرور المستخدمين.
 const firebaseConfig = {
@@ -61,17 +62,10 @@ const categoryParent = document.querySelector('#category-parent');
 const categoriesTitle = document.querySelector('#categories-title');
 const categoriesContext = document.querySelector('#categories-context');
 const categoryFormTitle = document.querySelector('#category-form-title');
-const backToRoot = document.querySelector('#back-to-root');
+const categoriesBreadcrumb = document.querySelector('#categories-breadcrumb');
+const backOneLevel = document.querySelector('#back-one-level');
 const retryCategories = document.querySelector('#retry-categories');
 const navButtons = document.querySelectorAll('[data-panel]');
-const addMenuButton = document.querySelector('#add-menu-button');
-const addMenu = document.querySelector('#add-menu');
-const addMenuCategoryLabel = document.querySelector('#add-menu-category-label');
-const addMenuChannelItem = document.querySelector('[data-add-type="channel"]');
-const categoryFormCard = document.querySelector('#category-form-card');
-const categoryFormClose = document.querySelector('#category-form-close');
-const channelFormCard = document.querySelector('#channel-form-card');
-const channelFormClose = document.querySelector('#channel-form-close');
 const channelForm = document.querySelector('#channel-form');
 const channelCategory = document.querySelector('#channel-category');
 const channelTitle = document.querySelector('#channel-title');
@@ -84,25 +78,38 @@ const channelFormTitle = document.querySelector('#channel-form-title');
 const channelSaveButton = document.querySelector('#channel-save-button');
 const channelCancelButton = document.querySelector('#channel-cancel-button');
 const channelFormMessage = document.querySelector('#channel-form-message');
-const channelsRootHint = document.querySelector('#channels-root-hint');
-const channelsSection = document.querySelector('#channels-section');
-const channelsTitle = document.querySelector('#channels-title');
 const channelsList = document.querySelector('#channels-list');
 const channelsLoading = document.querySelector('#channels-loading');
 const channelsEmpty = document.querySelector('#channels-empty');
 const channelsCount = document.querySelector('#channels-count');
+let currentChannels = [];
+let currentCategories = [];
+// مسار التنقل الكامل داخل الأقسام (وليس مجرد "الأب المباشر") — هذا ما
+// يسمح بالرجوع خطوة بخطوة مهما كان عمق التداخل، وليس قفزة واحدة للجذر.
+// كل عنصر: { id, title }. مصفوفة فارغة = نحن في الأقسام الرئيسية.
+let categoryPath = [];
+function currentParentIdValue() {
+  return categoryPath.length ? categoryPath[categoryPath.length - 1].id : null;
+}
+
+// ---- المباريات (API-Football عبر Cloud Function) ----
+const syncMatchesButton = document.querySelector('#sync-matches-button');
+const matchesStatusText = document.querySelector('#matches-status-text');
+const matchesMessage = document.querySelector('#matches-message');
+
+// ---- الرسائل (contactMessages) ----
 const messagesLoading = document.querySelector('#messages-loading');
-const messagesError = document.querySelector('#messages-error');
 const messagesEmpty = document.querySelector('#messages-empty');
 const messagesList = document.querySelector('#messages-list');
 const messagesCount = document.querySelector('#messages-count');
 const messagesBadge = document.querySelector('#messages-badge');
-const syncMatchesButton = document.querySelector('#sync-matches-button');
-const syncMatchesMessage = document.querySelector('#sync-matches-message');
-let currentChannels = [];
-let currentCategories = [];
-let currentParentId = null;
-let unsubscribeMessages = null;
+let currentMessages = [];
+
+// ---- الشروط والأحكام / سياسة الخصوصية ----
+const legalForm = document.querySelector('#legal-form');
+const legalTerms = document.querySelector('#legal-terms');
+const legalPrivacy = document.querySelector('#legal-privacy');
+const legalMessage = document.querySelector('#legal-message');
 
 function showView(name) {
   Object.entries(views).forEach(([key, element]) => element.classList.toggle('hidden', key !== name));
@@ -120,28 +127,43 @@ function resetCategories() {
 
 function showCategories(categories) {
   currentCategories = categories;
+  fillChannelCategories();
   categoriesLoading.classList.add('hidden');
   categoriesError.classList.add('hidden');
   renderCurrentCategoryView();
-  renderChannelsForCurrentCategory();
+}
+
+function fillChannelCategories() {
+  const priorValue = channelCategory.value;
+  channelCategory.innerHTML = '<option value="">اختر القسم</option>' + currentCategories
+    .map((category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.title || 'قسم بلا اسم')}</option>`)
+    .join('');
+  channelCategory.value = currentCategories.some((category) => category.id === priorValue) ? priorValue : '';
 }
 
 function renderCurrentCategoryView() {
-  const parent = currentCategories.find((category) => category.id === currentParentId);
-  if (currentParentId && !parent) currentParentId = null;
+  // نتحقق من صحة كل عنصر في المسار (قد يكون قسم قد حُذف من قبل)، ونقصّ
+  // المسار عند أول عنصر غير موجود بدل تفريغه بالكامل، فيبقى المستخدم أقرب
+  // ما يمكن لمكانه بدل الرجوع للجذر فجأة.
+  const validIndex = categoryPath.findIndex(
+    (entry) => !currentCategories.some((category) => category.id === entry.id),
+  );
+  if (validIndex !== -1) categoryPath = categoryPath.slice(0, validIndex);
+  const currentParentId = currentParentIdValue();
+  const parent = categoryPath[categoryPath.length - 1];
   const visibleCategories = currentCategories.filter(
     (category) => (category.parentId || null) === currentParentId,
   );
-  const isRoot = currentParentId === null;
+  const isRoot = categoryPath.length === 0;
   const parentTitle = parent?.title || '';
   categoriesTitle.textContent = isRoot ? 'الأقسام الرئيسية' : `داخل قسم: ${parentTitle}`;
   categoriesContext.textContent = isRoot
     ? 'اختر قسماً لعرض ما بداخله، أو أضف قسماً رئيسياً.'
     : `كل قسم تضيفه هنا يصبح فرعياً داخل «${parentTitle}».`;
   categoryFormTitle.textContent = isRoot ? 'إضافة قسم رئيسي' : `إضافة قسم داخل «${parentTitle}»`;
-  addMenuCategoryLabel.textContent = isRoot ? 'قسم رئيسي' : 'قسم فرعي';
   categoryParent.value = currentParentId || '';
-  backToRoot.classList.toggle('hidden', isRoot);
+  backOneLevel.classList.toggle('hidden', isRoot);
+  renderBreadcrumb();
   categoriesCount.textContent = `${visibleCategories.length} قسم`;
   if (visibleCategories.length === 0) {
     categoriesEmpty.classList.remove('hidden');
@@ -156,13 +178,19 @@ function renderCurrentCategoryView() {
       ? `<img class="category-image" src="${escapeHtml(category.iconUrl)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'category-image-placeholder', textContent: '⚽'}))">`
       : '<div class="category-image-placeholder" aria-hidden="true">⚽</div>';
     const childrenCount = currentCategories.filter((item) => item.parentId === id).length;
-    const channelsCountForCategory = currentChannels.filter((item) => item.categoryId === id).length;
-    const summary = childrenCount
-      ? `${childrenCount} أقسام داخلية`
-      : (channelsCountForCategory ? `${channelsCountForCategory} قناة` : 'لا توجد قنوات بعد');
-    return `<article class="card category-card">${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${summary}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p><button class="open-category-button" type="button" data-open-category="${escapeHtml(id)}">فتح القسم</button><div class="category-tools"><button type="button" data-edit-category="${escapeHtml(id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-category="${escapeHtml(id)}">حذف</button></div></div></article>`;
+    return `<article class="card category-card">${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${childrenCount ? `${childrenCount} أقسام داخلية` : 'لا توجد أقسام داخلية'}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p><button class="open-category-button" type="button" data-open-category="${escapeHtml(id)}">فتح القسم</button><div class="category-tools"><button type="button" data-edit-category="${escapeHtml(id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-category="${escapeHtml(id)}">حذف</button></div></div></article>`;
   }).join('');
   categoriesList.classList.remove('hidden');
+}
+
+function renderBreadcrumb() {
+  const rootButton = `<button type="button" class="${categoryPath.length === 0 ? 'current' : ''}" data-breadcrumb-index="-1">الأقسام الرئيسية</button>`;
+  const trail = categoryPath.map((entry, index) => {
+    const isCurrent = index === categoryPath.length - 1;
+    return `<span class="breadcrumb-sep">‹</span><button type="button" class="${isCurrent ? 'current' : ''}" data-breadcrumb-index="${index}">${escapeHtml(entry.title || 'قسم بلا اسم')}</button>`;
+  }).join('');
+  categoriesBreadcrumb.innerHTML = rootButton + trail;
+  categoriesBreadcrumb.classList.toggle('hidden', categoryPath.length === 0);
 }
 
 function escapeHtml(value) {
@@ -202,44 +230,20 @@ async function loadChannels() {
     ]);
     currentChannels = snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
     channelsLoading.classList.add('hidden');
-    renderCurrentCategoryView();
-    renderChannelsForCurrentCategory();
+    channelsCount.textContent = `${currentChannels.length} قناة`;
+    if (!currentChannels.length) { channelsEmpty.classList.remove('hidden'); return; }
+    channelsList.innerHTML = currentChannels.map((channel) => {
+      const category = currentCategories.find((item) => item.id === channel.categoryId);
+      const logo = channel.logoUrl ? `<img class="channel-logo" src="${escapeHtml(channel.logoUrl)}" alt="">` : '<div class="channel-logo category-image-placeholder">⚽</div>';
+      return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(category?.title || 'قسم غير محدد')} · ${escapeHtml(channel.subtitle || 'بدون وصف')}</p><div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
+    }).join('');
+    channelsList.classList.remove('hidden');
+    loadChannelSources(currentChannels);
   } catch (_) {
     channelsLoading.classList.add('hidden');
     channelsEmpty.classList.remove('hidden');
     channelsEmpty.innerHTML = '<h2>تعذر تحميل القنوات</h2><p>تأكد من إضافة صلاحية channels في قواعد Firestore أدناه.</p>';
   }
-}
-
-function renderChannelsForCurrentCategory() {
-  const isRoot = currentParentId === null;
-  channelsRootHint.classList.toggle('hidden', !isRoot);
-  channelsSection.classList.toggle('hidden', isRoot);
-  channelCategory.value = currentParentId || '';
-  addMenuChannelItem.disabled = isRoot;
-  addMenuChannelItem.title = isRoot ? 'افتح قسماً أولاً لإضافة قناة إليه' : '';
-  if (isRoot) return;
-
-  const category = currentCategories.find((item) => item.id === currentParentId);
-  channelsTitle.textContent = category?.title ? `قنوات قسم: ${category.title}` : 'قنوات القسم';
-
-  const channelsInCategory = currentChannels.filter((channel) => channel.categoryId === currentParentId);
-  channelsCount.textContent = `${channelsInCategory.length} قناة`;
-  channelsLoading.classList.add('hidden');
-
-  if (!channelsInCategory.length) {
-    channelsEmpty.classList.remove('hidden');
-    channelsList.classList.add('hidden');
-    return;
-  }
-
-  channelsEmpty.classList.add('hidden');
-  channelsList.innerHTML = channelsInCategory.map((channel) => {
-    const logo = channel.logoUrl ? `<img class="channel-logo" src="${escapeHtml(channel.logoUrl)}" alt="">` : '<div class="channel-logo category-image-placeholder">⚽</div>';
-    return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p><div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
-  }).join('');
-  channelsList.classList.remove('hidden');
-  loadChannelSources(channelsInCategory);
 }
 
 // مصادر البث الحقيقية (روابط m3u8) محفوظة في مجموعة منفصلة privateStreams
@@ -295,112 +299,185 @@ async function saveChannelSource(channelId) {
   }
 }
 
-// رسائل "تواصل معنا" و"الإبلاغ عن رابط معطوب" — استماع لحظي حتى تظهر
-// الرسائل الجديدة فور وصولها دون الحاجة لإعادة تحميل الصفحة.
-function watchMessages() {
-  if (unsubscribeMessages) return;
-  messagesLoading.classList.remove('hidden');
-  messagesError.classList.add('hidden');
-  const messagesQuery = query(collection(db, 'contactMessages'), orderBy('createdAt', 'desc'));
-  unsubscribeMessages = onSnapshot(
-    messagesQuery,
-    (snapshot) => {
-      const messages = snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
-      renderMessages(messages);
-    },
-    () => {
-      messagesLoading.classList.add('hidden');
-      messagesCount.textContent = 'تعذر التحميل';
-      messagesError.textContent = 'تعذر الاتصال بمجموعة الرسائل. تأكد من نشر قواعد Firestore الجديدة (contactMessages) ثم أعد تسجيل الدخول.';
-      messagesError.classList.remove('hidden');
-    },
-  );
-}
-
-function formatMessageDate(timestamp) {
-  if (!timestamp?.toDate) return '';
-  return timestamp.toDate().toLocaleString('ar', { dateStyle: 'medium', timeStyle: 'short' });
-}
-
-function renderMessages(messages) {
-  messagesLoading.classList.add('hidden');
-  messagesError.classList.add('hidden');
-  const newCount = messages.filter((item) => item.status !== 'read').length;
-  messagesCount.textContent = `${messages.length} رسالة${newCount ? ` (${newCount} جديدة)` : ''}`;
-  if (newCount) {
-    messagesBadge.textContent = String(newCount);
-    messagesBadge.classList.remove('hidden');
-  } else {
-    messagesBadge.classList.add('hidden');
-  }
-  if (!messages.length) {
-    messagesEmpty.classList.remove('hidden');
-    messagesList.classList.add('hidden');
-    return;
-  }
-  messagesEmpty.classList.add('hidden');
-  messagesList.innerHTML = messages.map((item) => {
-    const isRead = item.status === 'read';
-    const typeLabel = item.type === 'broken_link' ? '🔗 رابط معطوب' : '💬 استفسار عام';
-    const channelInfo = item.channelInfo ? `<p><strong>القناة/القسم:</strong> ${escapeHtml(item.channelInfo)}</p>` : '';
-    return `<article class="card channel-item message-item">
-      <div class="channel-info">
-        <h3>${typeLabel} ${isRead ? '' : '<span class="premium-tag">جديدة</span>'}</h3>
-        ${channelInfo}
-        <p>${escapeHtml(item.message || '')}</p>
-        <p class="muted" style="font-size:.78rem;margin-top:6px;">${formatMessageDate(item.createdAt)}</p>
-      </div>
-      <div class="channel-actions">
-        <button type="button" data-toggle-read="${escapeHtml(item.id)}">${isRead ? 'إعادة لغير مقروءة' : 'تعليم كمقروءة'}</button>
-        <button class="delete-category-button" type="button" data-delete-message="${escapeHtml(item.id)}">حذف</button>
-      </div>
-    </article>`;
-  }).join('');
-  messagesList.classList.remove('hidden');
-}
-
-messagesList.addEventListener('click', async (event) => {
-  const toggle = event.target.closest('[data-toggle-read]');
-  const remove = event.target.closest('[data-delete-message]');
-  if (toggle) {
-    const id = toggle.dataset.toggleRead;
-    const currentlyRead = toggle.textContent.includes('غير مقروءة');
-    try { await updateDoc(doc(db, 'contactMessages', id), { status: currentlyRead ? 'new' : 'read' }); }
-    catch (_) { window.alert('تعذر تحديث حالة الرسالة.'); }
-    return;
-  }
-  if (remove) {
-    if (!window.confirm('حذف هذه الرسالة نهائياً؟')) return;
-    try { await deleteDoc(doc(db, 'contactMessages', remove.dataset.deleteMessage)); }
-    catch (_) { window.alert('تعذر حذف الرسالة.'); }
-  }
-});
-
 async function loadPlayerSettings() {
   try {
     const snapshot = await getDoc(doc(db, 'settings', 'player'));
     const data = snapshot.data();
     if (!data) return;
     document.querySelector('#player-scheme').value = data.deepLinkScheme || 'sportsplayer';
+    document.querySelector('#player-package').value = data.androidPackage || '';
     document.querySelector('#player-store-url').value = data.storeUrl || '';
   } catch (_) {
     // إعدادات المشغل اختيارية إلى أن ينشر تطبيق المشغل في Google Play.
   }
 }
 
-// الشروط وسياسة الخصوصية — تُقرأ وتُعدّل من settings/legal، ويقرأها تطبيق
-// المحتوى مباشرة عبر legal_service.dart بدون تحديث التطبيق.
+// ==========================================================================
+// مباريات اليوم — حالة المزامنة وزر "مزامنة الآن"
+// ==========================================================================
+// تُقرأ فقط للعرض هنا (نفس مستند matches_daily/{today} الذي يقرأه التطبيق).
+// الكتابة الفعلية تتم حصراً داخل Cloud Function refreshMatches (Admin SDK)،
+// وليس من هذا الملف — راجع firestore.rules (allow write: if false;).
+function todayDateKey() {
+  const now = new Date();
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
+}
+
+function formatTimestamp(value) {
+  if (!value?.toDate) return 'غير معروف';
+  return value.toDate().toLocaleString('ar-EG', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+}
+
+async function loadMatchesStatus() {
+  matchesStatusText.textContent = 'جارٍ التحميل…';
+  try {
+    const snapshot = await getDoc(doc(db, 'matches_daily', todayDateKey()));
+    const data = snapshot.data();
+    if (!data) {
+      matchesStatusText.textContent = 'لا توجد مزامنة اليوم بعد. اضغط «مزامنة الآن».';
+      return;
+    }
+    const count = Array.isArray(data.events) ? data.events.length : 0;
+    matchesStatusText.textContent = `آخر تحديث: ${formatTimestamp(data.updatedAt)} · ${count} مباراة اليوم`;
+  } catch (_) {
+    matchesStatusText.textContent = 'تعذر قراءة حالة المزامنة.';
+  }
+}
+
+syncMatchesButton?.addEventListener('click', async () => {
+  syncMatchesButton.disabled = true;
+  syncMatchesButton.textContent = 'جارٍ المزامنة…';
+  matchesMessage.classList.add('hidden');
+  matchesMessage.classList.remove('error-card');
+  try {
+    const response = await fetch(`${WORKER_BASE_URL}/refreshMatches`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-key': ADMIN_SYNC_SECRET },
+      body: JSON.stringify({ date: todayDateKey() }),
+    });
+    const result = await response.json();
+    if (!response.ok || result.ok === false) {
+      throw new Error(result.message || `HTTP ${response.status}`);
+    }
+    matchesMessage.textContent = `تمت المزامنة بنجاح — ${result.count ?? 0} مباراة.`;
+    matchesMessage.classList.remove('hidden');
+    await loadMatchesStatus();
+  } catch (error) {
+    matchesMessage.textContent = 'تعذرت المزامنة. تأكد من ضبط أسرار Worker (راجع cloudflare-worker/README.md) ومن تحديث WORKER_BASE_URL في هذا الملف.';
+    matchesMessage.classList.remove('hidden');
+    matchesMessage.classList.add('error-card');
+  } finally {
+    syncMatchesButton.disabled = false;
+    syncMatchesButton.textContent = 'مزامنة الآن';
+  }
+});
+
+// ==========================================================================
+// الرسائل الواردة (contactMessages) — تواصل معنا / إبلاغ عن رابط معطوب
+// ==========================================================================
+const MESSAGE_TYPE_LABELS = { general: 'تواصل معنا', broken_link: 'رابط معطوب' };
+
+async function loadMessages() {
+  messagesLoading.classList.remove('hidden');
+  messagesEmpty.classList.add('hidden');
+  messagesList.classList.add('hidden');
+  try {
+    const messagesQuery = query(collection(db, 'contactMessages'), orderBy('createdAt', 'desc'), limit(100));
+    const snapshot = await getDocs(messagesQuery);
+    currentMessages = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+    messagesLoading.classList.add('hidden');
+
+    const newCount = currentMessages.filter((message) => message.status !== 'read').length;
+    messagesCount.textContent = `${currentMessages.length} رسالة`;
+    if (newCount > 0) {
+      messagesBadge.textContent = String(newCount);
+      messagesBadge.classList.remove('hidden');
+    } else {
+      messagesBadge.classList.add('hidden');
+    }
+
+    if (!currentMessages.length) {
+      messagesEmpty.classList.remove('hidden');
+      return;
+    }
+
+    messagesList.innerHTML = currentMessages.map((message) => {
+      const isBroken = message.type === 'broken_link';
+      const typeLabel = MESSAGE_TYPE_LABELS[message.type] || 'رسالة';
+      const isRead = message.status === 'read';
+      const channelInfo = message.channelInfo
+        ? `<p class="message-channel-info">القناة/الرابط المُبلَّغ عنه: ${escapeHtml(message.channelInfo)}</p>`
+        : '';
+      return `<article class="card message-item">
+        <div class="message-item-head">
+          <span class="message-type-tag${isBroken ? ' broken-link' : ''}">${typeLabel}</span>
+          <span class="message-status-tag ${isRead ? 'read' : 'new'}">${isRead ? 'تمت القراءة' : 'جديدة'}</span>
+          <span class="message-date">${formatTimestamp(message.createdAt)}</span>
+        </div>
+        <p class="message-body">${escapeHtml(message.message || '')}</p>
+        ${channelInfo}
+        <div class="message-actions">
+          ${isRead
+            ? ''
+            : `<button type="button" data-mark-read="${escapeHtml(message.id)}">تحديد كمقروءة</button>`}
+          <button class="delete-category-button" type="button" data-delete-message="${escapeHtml(message.id)}">حذف</button>
+        </div>
+      </article>`;
+    }).join('');
+    messagesList.classList.remove('hidden');
+  } catch (_) {
+    messagesLoading.classList.add('hidden');
+    messagesEmpty.classList.remove('hidden');
+    messagesEmpty.innerHTML = '<h2>تعذر تحميل الرسائل</h2><p>تأكد من صلاحيات القراءة على contactMessages في قواعد Firestore.</p>';
+  }
+}
+
+messagesList?.addEventListener('click', async (event) => {
+  const markRead = event.target.closest('[data-mark-read]');
+  const remove = event.target.closest('[data-delete-message]');
+  if (markRead) {
+    try { await updateDoc(doc(db, 'contactMessages', markRead.dataset.markRead), { status: 'read' }); await loadMessages(); }
+    catch (_) { window.alert('تعذر تحديث حالة الرسالة.'); }
+    return;
+  }
+  if (remove) {
+    if (!window.confirm('حذف هذه الرسالة نهائياً؟')) return;
+    try { await deleteDoc(doc(db, 'contactMessages', remove.dataset.deleteMessage)); await loadMessages(); }
+    catch (_) { window.alert('تعذر حذف الرسالة.'); }
+  }
+});
+
+// ==========================================================================
+// الشروط والأحكام وسياسة الخصوصية (settings/legal)
+// ==========================================================================
 async function loadLegalSettings() {
   try {
     const snapshot = await getDoc(doc(db, 'settings', 'legal'));
     const data = snapshot.data();
     if (!data) return;
-    document.querySelector('#legal-terms').value = data.terms || '';
-    document.querySelector('#legal-privacy').value = data.privacy || '';
+    legalTerms.value = data.terms || '';
+    legalPrivacy.value = data.privacy || '';
   } catch (_) {
-    // النصوص اختيارية إلى أن يضيفها المالك أول مرة.
+    // النصوص القانونية اختيارية إلى أن تُضاف لأول مرة من هنا.
   }
 }
+
+legalForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  legalMessage.textContent = '';
+  legalMessage.classList.remove('error');
+  try {
+    await setDoc(doc(db, 'settings', 'legal'), {
+      terms: legalTerms.value.trim(),
+      privacy: legalPrivacy.value.trim(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    legalMessage.textContent = 'تم حفظ النصوص، وستظهر فوراً في التطبيق.';
+  } catch (_) {
+    legalMessage.textContent = 'تعذر الحفظ. تحقق من قواعد Firestore.';
+    legalMessage.classList.add('error');
+  }
+});
 
 onAuthStateChanged(auth, (user) => {
   if (user) {
@@ -409,11 +486,11 @@ onAuthStateChanged(auth, (user) => {
     loadCategories();
     loadChannels();
     loadPlayerSettings();
+    loadMatchesStatus();
+    loadMessages();
     loadLegalSettings();
-    watchMessages();
     return;
   }
-  if (unsubscribeMessages) { unsubscribeMessages(); unsubscribeMessages = null; }
   showView('login');
 });
 
@@ -439,45 +516,6 @@ navButtons.forEach((button) => button.addEventListener('click', () => {
   document.querySelectorAll('.admin-panel').forEach((panel) => panel.classList.toggle('hidden', panel.id !== button.dataset.panel));
 }));
 
-function closeAddMenu() {
-  addMenu.classList.add('hidden');
-  addMenuButton.setAttribute('aria-expanded', 'false');
-}
-
-addMenuButton.addEventListener('click', (event) => {
-  event.stopPropagation();
-  const willOpen = addMenu.classList.contains('hidden');
-  closeAddMenu();
-  if (willOpen) {
-    addMenu.classList.remove('hidden');
-    addMenuButton.setAttribute('aria-expanded', 'true');
-  }
-});
-
-document.addEventListener('click', (event) => {
-  if (!addMenu.classList.contains('hidden') && !event.target.closest('.add-menu-wrap')) closeAddMenu();
-});
-
-addMenu.addEventListener('click', (event) => {
-  const item = event.target.closest('[data-add-type]');
-  if (!item || item.disabled) return;
-  closeAddMenu();
-  if (item.dataset.addType === 'category') {
-    channelFormCard.classList.add('hidden');
-    categoryFormCard.classList.remove('hidden');
-    categoryFormCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    document.querySelector('#category-title').focus();
-  } else if (item.dataset.addType === 'channel') {
-    categoryFormCard.classList.add('hidden');
-    channelFormCard.classList.remove('hidden');
-    channelFormCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    channelTitle.focus();
-  }
-});
-
-categoryFormClose.addEventListener('click', () => categoryFormCard.classList.add('hidden'));
-channelFormClose.addEventListener('click', () => { channelFormCard.classList.add('hidden'); resetChannelForm(); });
-
 categoriesList.addEventListener('click', (event) => {
   const edit = event.target.closest('[data-edit-category]');
   const remove = event.target.closest('[data-delete-category]');
@@ -485,13 +523,11 @@ categoriesList.addEventListener('click', (event) => {
   if (remove) return deleteCategory(remove.dataset.deleteCategory);
   const button = event.target.closest('[data-open-category]');
   if (!button) return;
-  currentParentId = button.dataset.openCategory;
+  const id = button.dataset.openCategory;
+  const category = currentCategories.find((item) => item.id === id);
+  categoryPath = [...categoryPath, { id, title: category?.title || '' }];
   categoryFormMessage.textContent = '';
-  categoryFormCard.classList.add('hidden');
-  channelFormCard.classList.add('hidden');
-  resetChannelForm();
   renderCurrentCategoryView();
-  renderChannelsForCurrentCategory();
 });
 
 async function editCategory(id) {
@@ -505,27 +541,34 @@ async function editCategory(id) {
 async function deleteCategory(id) {
   const category = currentCategories.find((item) => item.id === id);
   if (currentCategories.some((item) => item.parentId === id)) return window.alert('لا يمكن حذف قسم يحتوي أقساماً داخلية.');
-  if (currentChannels.some((item) => item.categoryId === id)) return window.alert('لا يمكن حذف قسم يحتوي قنوات. احذف قنواته أولاً.');
   if (!window.confirm(`حذف «${category?.title || ''}»؟`)) return;
   try { await deleteDoc(doc(db, 'categories', id)); await loadCategories(); }
   catch (_) { window.alert('تعذر الحذف.'); }
 }
 
-backToRoot.addEventListener('click', () => {
-  currentParentId = null;
+// رجوع خطوة واحدة فقط للخلف (وليس قفزة للجذر) — يحل مشكلة فقدان مكانك
+// عند التنقل بين أقسام متداخلة.
+backOneLevel.addEventListener('click', () => {
+  categoryPath = categoryPath.slice(0, -1);
   categoryFormMessage.textContent = '';
-  categoryFormCard.classList.add('hidden');
-  channelFormCard.classList.add('hidden');
-  resetChannelForm();
   renderCurrentCategoryView();
-  renderChannelsForCurrentCategory();
+});
+
+// النقر على أي محطة في مسار التنقل (breadcrumb) يقفز مباشرة لذلك المستوى.
+categoriesBreadcrumb.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-breadcrumb-index]');
+  if (!button) return;
+  const index = Number(button.dataset.breadcrumbIndex);
+  categoryPath = index < 0 ? [] : categoryPath.slice(0, index + 1);
+  categoryFormMessage.textContent = '';
+  renderCurrentCategoryView();
 });
 
 categoryForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const title = categoryForm.elements.title.value.trim();
   const iconUrl = categoryForm.elements.image.value.trim();
-  const parentId = currentParentId;
+  const parentId = currentParentIdValue();
   if (!title) return;
 
   categoryFormMessage.textContent = '';
@@ -542,7 +585,7 @@ categoryForm.addEventListener('submit', async (event) => {
       createdAt: serverTimestamp(),
     });
     categoryForm.reset();
-    categoryParent.value = currentParentId || '';
+    categoryParent.value = currentParentIdValue() || '';
     categoryFormMessage.textContent = 'تمت إضافة القسم. سيظهر فوراً في قائمة الأقسام والتطبيق.';
     await loadCategories();
   } catch (error) {
@@ -555,14 +598,14 @@ categoryForm.addEventListener('submit', async (event) => {
 });
 
 function resetChannelForm() {
-  channelForm.reset(); channelEditId.value = ''; channelCategory.value = currentParentId || ''; channelFormTitle.textContent = 'إضافة قناة';
+  channelForm.reset(); channelEditId.value = ''; channelFormTitle.textContent = 'إضافة قناة';
   channelSaveButton.textContent = 'إضافة القناة'; channelCancelButton.classList.add('hidden'); channelFormMessage.textContent = '';
 }
 
 channelForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (!currentParentId || !channelTitle.value.trim()) return;
-  const data = { categoryId: currentParentId, title: channelTitle.value.trim(), subtitle: channelSubtitle.value.trim(), status: channelStatus.value, logoUrl: channelLogo.value.trim() || null, playerChannelKey: channelPlayerKey.value.trim() || null, updatedAt: serverTimestamp() };
+  if (!channelCategory.value || !channelTitle.value.trim()) return;
+  const data = { categoryId: channelCategory.value, title: channelTitle.value.trim(), subtitle: channelSubtitle.value.trim(), status: channelStatus.value, logoUrl: channelLogo.value.trim() || null, playerChannelKey: channelPlayerKey.value.trim() || null, updatedAt: serverTimestamp() };
   channelSaveButton.disabled = true;
   try {
     if (channelEditId.value) await updateDoc(doc(db, 'channels', channelEditId.value), data);
@@ -574,15 +617,7 @@ channelForm.addEventListener('submit', async (event) => {
 channelCancelButton.addEventListener('click', resetChannelForm);
 channelsList.addEventListener('click', async (event) => {
   const edit = event.target.closest('[data-edit-channel]'); const remove = event.target.closest('[data-delete-channel]'); const saveSource = event.target.closest('[data-save-source]');
-  if (edit) {
-    const channel = currentChannels.find((item) => item.id === edit.dataset.editChannel);
-    if (!channel) return;
-    categoryFormCard.classList.add('hidden');
-    channelFormCard.classList.remove('hidden');
-    channelEditId.value = channel.id; channelCategory.value = channel.categoryId || ''; channelTitle.value = channel.title || ''; channelSubtitle.value = channel.subtitle || ''; channelStatus.value = channel.status || 'upcoming'; channelLogo.value = channel.logoUrl || ''; channelPlayerKey.value = channel.playerChannelKey || ''; channelFormTitle.textContent = `تعديل: ${channel.title}`; channelSaveButton.textContent = 'حفظ التعديل'; channelCancelButton.classList.remove('hidden');
-    channelFormCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    return;
-  }
+  if (edit) { const channel = currentChannels.find((item) => item.id === edit.dataset.editChannel); if (!channel) return; channelEditId.value = channel.id; channelCategory.value = channel.categoryId || ''; channelTitle.value = channel.title || ''; channelSubtitle.value = channel.subtitle || ''; channelStatus.value = channel.status || 'upcoming'; channelLogo.value = channel.logoUrl || ''; channelPlayerKey.value = channel.playerChannelKey || ''; channelFormTitle.textContent = `تعديل: ${channel.title}`; channelSaveButton.textContent = 'حفظ التعديل'; channelCancelButton.classList.remove('hidden'); return; }
   if (remove) { const channel = currentChannels.find((item) => item.id === remove.dataset.deleteChannel); if (!window.confirm(`حذف «${channel?.title || ''}»؟`)) return; try { await deleteDoc(doc(db, 'channels', remove.dataset.deleteChannel)); await loadChannels(); } catch (_) { window.alert('تعذر الحذف.'); } return; }
   if (saveSource) { await saveChannelSource(saveSource.dataset.saveSource); }
 });
@@ -597,10 +632,12 @@ document.querySelector('#player-form').addEventListener('submit', async (event) 
   event.preventDefault();
   const message = document.querySelector('#player-message');
   const scheme = document.querySelector('#player-scheme').value.trim().replaceAll('://', '');
+  const androidPackage = document.querySelector('#player-package').value.trim();
   const storeUrl = document.querySelector('#player-store-url').value.trim();
   try {
     await setDoc(doc(db, 'settings', 'player'), {
       deepLinkScheme: scheme,
+      androidPackage,
       storeUrl,
       updatedAt: serverTimestamp(),
     }, { merge: true });
@@ -609,54 +646,5 @@ document.querySelector('#player-form').addEventListener('submit', async (event) 
   } catch (_) {
     message.classList.add('error');
     message.textContent = 'تعذر حفظ إعدادات المشغل. تحقق من قواعد Firestore.';
-  }
-});
-
-// زر "مزامنة الآن" — يستدعي /refreshMatches على Cloudflare Worker مباشرة
-// من المتصفح، مع هيدر x-admin-key، ويعرض عدد المباريات المُحدَّثة أو رسالة الخطأ.
-syncMatchesButton?.addEventListener('click', async () => {
-  syncMatchesButton.disabled = true;
-  syncMatchesButton.textContent = 'جارٍ المزامنة…';
-  syncMatchesMessage.classList.remove('error');
-  syncMatchesMessage.textContent = '';
-  try {
-    const response = await fetch(`${WORKER_BASE_URL}/refreshMatches`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-admin-key': ADMIN_SYNC_SECRET,
-      },
-      body: JSON.stringify({}),
-    });
-    const data = await response.json();
-    if (!response.ok || data.ok === false) {
-      throw new Error(data.message || `فشل الطلب (${response.status})`);
-    }
-    syncMatchesMessage.textContent = `تم التحديث ✓ عدد المباريات: ${data.count} (${data.date})`;
-  } catch (error) {
-    syncMatchesMessage.classList.add('error');
-    syncMatchesMessage.textContent = `تعذرت المزامنة: ${error.message || error}`;
-  } finally {
-    syncMatchesButton.disabled = false;
-    syncMatchesButton.textContent = 'مزامنة الآن';
-  }
-});
-
-document.querySelector('#legal-form').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const message = document.querySelector('#legal-message');
-  const terms = document.querySelector('#legal-terms').value.trim();
-  const privacy = document.querySelector('#legal-privacy').value.trim();
-  message.classList.remove('error');
-  try {
-    await setDoc(doc(db, 'settings', 'legal'), {
-      terms,
-      privacy,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-    message.textContent = 'تم حفظ النصوص، وستظهر في التطبيق فوراً.';
-  } catch (_) {
-    message.classList.add('error');
-    message.textContent = 'تعذر حفظ النصوص. تحقق من قواعد Firestore.';
   }
 });

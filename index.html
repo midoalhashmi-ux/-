@@ -39,9 +39,10 @@
 
         <nav class="admin-nav" aria-label="إدارة اللوحة">
           <button class="nav-button active" type="button" data-panel="categories-panel">الأقسام</button>
-          <button class="nav-button" type="button" data-panel="settings-panel">ألوان التطبيق</button>
-          <button class="nav-button" type="button" data-panel="messages-panel">الرسائل <span id="messages-badge" class="count-badge hidden"></span></button>
+          <button class="nav-button" type="button" data-panel="channels-panel">القنوات</button>
           <button class="nav-button" type="button" data-panel="matches-panel">المباريات</button>
+          <button class="nav-button" type="button" data-panel="messages-panel">الرسائل <span id="messages-badge" class="count-badge hidden"></span></button>
+          <button class="nav-button" type="button" data-panel="settings-panel">الإعدادات</button>
         </nav>
 
         <section id="categories-panel" class="admin-panel">
@@ -53,21 +54,13 @@
             <p id="categories-context" class="muted">أضف اسماً وصورة خلفية للقسم.</p>
           </div>
           <div class="section-actions">
-            <button id="back-to-root" class="secondary-button hidden" type="button">العودة للأقسام الرئيسية</button>
+            <nav id="categories-breadcrumb" class="breadcrumb hidden" aria-label="مسار الأقسام"></nav>
+            <button id="back-one-level" class="secondary-button hidden" type="button">◀ رجوع</button>
             <span id="categories-count" class="count-badge">جارٍ التحميل…</span>
-            <div class="add-menu-wrap">
-              <button id="add-menu-button" class="add-fab" type="button" aria-haspopup="true" aria-expanded="false" title="إضافة">+</button>
-              <div id="add-menu" class="add-menu hidden" role="menu">
-                <button type="button" class="add-menu-item" data-add-type="category" role="menuitem">📁 <span id="add-menu-category-label">قسم رئيسي</span></button>
-                <button type="button" class="add-menu-item" data-add-type="channel" role="menuitem">📺 قناة</button>
-                <button type="button" class="add-menu-item disabled" disabled title="سيتوفر لاحقاً">📝 نص كتابي <span class="soon-tag">قريباً</span></button>
-                <button type="button" class="add-menu-item disabled" disabled title="سيتوفر لاحقاً">🧩 خلية للقسم <span class="soon-tag">قريباً</span></button>
-              </div>
-            </div>
           </div>
         </section>
 
-        <section id="category-form-card" class="card category-form-card hidden">
+        <section class="card category-form-card">
           <div>
             <h2 id="category-form-title">إضافة قسم رئيسي</h2>
             <p class="muted">مثال: كرة القدم أو القنوات الرياضية.</p>
@@ -84,7 +77,6 @@
             <input id="category-parent" name="parentId" type="hidden" value="" />
             <p id="category-form-message" class="form-message" role="status"></p>
             <button id="category-save-button" type="submit">إضافة القسم</button>
-            <button id="category-form-close" class="secondary-button" type="button">إغلاق</button>
           </form>
         </section>
 
@@ -101,25 +93,22 @@
         </section>
         <section id="categories-list" class="categories-grid hidden" aria-label="قائمة الأقسام"></section>
 
-        <section id="channels-root-hint" class="card message-card">
-          <h2>افتح قسماً لعرض قنواته وإضافة قنوات جديدة إليه</h2>
-          <p>اضغط «فتح القسم» على أي قسم أعلاه (رئيسياً كان أو فرعياً)، ثم استخدم زر + واختر «قناة».</p>
+        <section class="next-step card">
+          <span>الخطوة القادمة</span>
+          <p>الأقسام الفرعية وتعديل الاسم.</p>
+        </section>
         </section>
 
-        <section id="channels-section" class="hidden">
+        <section id="channels-panel" class="admin-panel hidden">
           <section class="section-heading">
-            <div>
-              <p class="eyebrow">إدارة المحتوى · قنوات هذا القسم</p>
-              <h2 id="channels-title">قنوات القسم</h2>
-              <p class="muted">تُضاف القنوات هنا وتنتمي تلقائياً للقسم المفتوح حالياً.</p>
-            </div>
+            <div><p class="eyebrow">إدارة المحتوى</p><h2>القنوات</h2><p class="muted">اربط كل قناة بالقسم الفرعي المناسب.</p></div>
             <span id="channels-count" class="count-badge">جارٍ التحميل…</span>
           </section>
-          <section id="channel-form-card" class="card category-form-card channel-form-card hidden">
-            <div><h2 id="channel-form-title">إضافة قناة</h2><p class="muted">بيانات العرض؛ رابط المصدر يُضاف بعد الحفظ من قائمة القنوات أدناه.</p></div>
+          <section class="card category-form-card channel-form-card">
+            <div><h2 id="channel-form-title">إضافة قناة</h2><p class="muted">بيانات العرض فقط؛ رابط البث الآمن مرحلة لاحقة.</p></div>
             <form id="channel-form" class="channel-form">
               <input id="channel-edit-id" type="hidden" />
-              <input id="channel-category" type="hidden" />
+              <div><label for="channel-category">القسم</label><select id="channel-category" required></select></div>
               <div><label for="channel-title">اسم القناة</label><input id="channel-title" required maxlength="50" placeholder="مثال: SSC 1" /></div>
               <div><label for="channel-subtitle">وصف مختصر</label><input id="channel-subtitle" maxlength="90" placeholder="مثال: مباريات مباشرة" /></div>
               <div><label for="channel-status">الحالة</label><select id="channel-status"><option value="live">مباشر الآن</option><option value="upcoming">قريباً</option><option value="ended">انتهى</option></select></div>
@@ -128,57 +117,57 @@
               <p id="channel-form-message" class="form-message" role="status"></p>
               <button id="channel-save-button" type="submit">إضافة القناة</button>
               <button id="channel-cancel-button" class="secondary-button hidden" type="button">إلغاء التعديل</button>
-              <button id="channel-form-close" class="secondary-button" type="button">إغلاق</button>
             </form>
           </section>
           <section id="channels-loading" class="card loading-card"><span class="spinner"></span><p>جارٍ قراءة القنوات…</p></section>
-          <section id="channels-empty" class="card message-card hidden"><h2>لا توجد قنوات بعد</h2><p>اضغط زر + واختر «قناة» لإضافة أول قناة لهذا القسم.</p></section>
+          <section id="channels-empty" class="card message-card hidden"><h2>لا توجد قنوات بعد</h2><p>أضف أول قناة من النموذج أعلاه.</p></section>
           <section id="channels-list" class="channels-list hidden"></section>
-        </section>
-
-        <section class="next-step card">
-          <span>الخطوة القادمة</span>
-          <p>الأقسام الفرعية وتعديل الاسم.</p>
-        </section>
-        </section>
-
-        <section id="settings-panel" class="admin-panel hidden">
-          <section class="section-heading"><div><p class="eyebrow">إعدادات التطبيق</p><h2>ألوان التطبيق</h2><p class="muted">تتغير في تطبيق الجوال فور حفظها.</p></div></section>
-          <section class="card category-form-card"><div><h2>الثيم</h2><p class="muted">اكتب اللون بصيغة مثل #00C853.</p></div><form id="theme-form" class="category-form"><div><label for="primary-color">اللون الرئيسي</label><input id="primary-color" value="#00C853" pattern="#[0-9a-fA-F]{6}" required /></div><div><label for="background-color">لون الخلفية</label><input id="background-color" value="#0D0D0D" pattern="#[0-9a-fA-F]{6}" required /></div><p id="theme-message" class="form-message"></p><button type="submit">حفظ الألوان</button></form></section>
-          <section class="card category-form-card"><div><h2>تطبيق المشغل</h2><p class="muted">هذه الإعدادات تخبر تطبيق المحتوى كيف يفتح المشغل وكيف ينقل المستخدم للمتجر.</p></div><form id="player-form" class="category-form"><div><label for="player-scheme">اسم الرابط الداخلي</label><input id="player-scheme" value="sportsplayer" maxlength="30" placeholder="sportsplayer" required /></div><div><label for="player-store-url">رابط Google Play المباشر</label><input id="player-store-url" type="url" placeholder="https://play.google.com/store/apps/details?id=..." required /></div><p id="player-message" class="form-message"></p><button type="submit">حفظ إعدادات المشغل</button></form></section>
-          <section class="card category-form-card"><div><h2>الشروط وسياسة الخصوصية</h2><p class="muted">النص يظهر فوراً في التطبيق من القائمة الجانبية دون تحديث.</p></div><form id="legal-form" class="legal-form"><div><label for="legal-terms">الشروط والأحكام</label><textarea id="legal-terms" rows="8" placeholder="اكتب نص الشروط والأحكام هنا…"></textarea></div><div><label for="legal-privacy">سياسة الخصوصية</label><textarea id="legal-privacy" rows="8" placeholder="اكتب نص سياسة الخصوصية هنا…"></textarea></div><p id="legal-message" class="form-message"></p><button type="submit">حفظ النصوص</button></form></section>
-        </section>
-
-        <section id="messages-panel" class="admin-panel hidden">
-          <section class="section-heading">
-            <div>
-              <p class="eyebrow">تواصل معنا · الإبلاغ عن رابط معطوب</p>
-              <h2>الرسائل الواردة من التطبيق</h2>
-              <p class="muted">تُرسل مباشرة من تطبيق المحتوى دون بريد إلكتروني.</p>
-            </div>
-            <span id="messages-count" class="count-badge">جارٍ التحميل…</span>
-          </section>
-          <section id="messages-loading" class="card loading-card"><span class="spinner" aria-hidden="true"></span><p>جارٍ تحميل الرسائل…</p></section>
-          <section id="messages-error" class="card message-card error-card hidden" role="alert"></section>
-          <section id="messages-empty" class="card message-card hidden"><h2>لا توجد رسائل بعد</h2><p>ستظهر هنا فور إرسال أي مستخدم رسالة من التطبيق.</p></section>
-          <section id="messages-list" class="channels-list hidden" aria-label="قائمة الرسائل"></section>
         </section>
 
         <section id="matches-panel" class="admin-panel hidden">
           <section class="section-heading">
             <div>
-              <p class="eyebrow">مباريات اليوم · API-Football</p>
-              <h2>مزامنة المباريات</h2>
-              <p class="muted">يجلب أحدث مباريات اليوم من API-Football ويخزّنها في Firestore. يعمل أيضاً تلقائياً كل ساعة.</p>
+              <p class="eyebrow">مصدر خارجي · API-Football</p>
+              <h2>مباريات اليوم</h2>
+              <p class="muted">تُجلب تلقائياً كل ساعة عبر Cloud Function وتُخزَّن في قاعدة البيانات؛ لا حاجة لأي تدخل يدوي عادةً.</p>
             </div>
           </section>
-          <section class="card category-form-card">
+          <section class="card matches-status-card">
             <div>
-              <h2>مزامنة يدوية</h2>
-              <p class="muted">اضغط الزر لتحديث مباريات اليوم فوراً بدل انتظار المزامنة التلقائية.</p>
+              <h2>حالة المزامنة</h2>
+              <p id="matches-status-text" class="muted">جارٍ التحميل…</p>
             </div>
             <button id="sync-matches-button" type="button">مزامنة الآن</button>
-            <p id="sync-matches-message" class="form-message" role="status"></p>
+          </section>
+          <section id="matches-message" class="card message-card hidden" role="status"></section>
+        </section>
+
+        <section id="messages-panel" class="admin-panel hidden">
+          <section class="section-heading">
+            <div>
+              <p class="eyebrow">تواصل معنا · إبلاغ عن رابط معطوب</p>
+              <h2>الرسائل الواردة</h2>
+              <p class="muted">ترسَل مباشرة من التطبيق بدون حاجة لبريد إلكتروني.</p>
+            </div>
+            <span id="messages-count" class="count-badge">جارٍ التحميل…</span>
+          </section>
+          <section id="messages-loading" class="card loading-card"><span class="spinner"></span><p>جارٍ قراءة الرسائل…</p></section>
+          <section id="messages-empty" class="card message-card hidden"><h2>لا توجد رسائل بعد</h2><p>ستظهر هنا فور إرسال أي رسالة من التطبيق.</p></section>
+          <section id="messages-list" class="channels-list hidden"></section>
+        </section>
+
+        <section id="settings-panel" class="admin-panel hidden">
+          <section class="section-heading"><div><p class="eyebrow">إعدادات التطبيق</p><h2>ألوان التطبيق</h2><p class="muted">تتغير في تطبيق الجوال فور حفظها.</p></div></section>
+          <section class="card category-form-card"><div><h2>الثيم</h2><p class="muted">اكتب اللون بصيغة مثل #00C853.</p></div><form id="theme-form" class="category-form"><div><label for="primary-color">اللون الرئيسي</label><input id="primary-color" value="#00C853" pattern="#[0-9a-fA-F]{6}" required /></div><div><label for="background-color">لون الخلفية</label><input id="background-color" value="#0D0D0D" pattern="#[0-9a-fA-F]{6}" required /></div><p id="theme-message" class="form-message"></p><button type="submit">حفظ الألوان</button></form></section>
+          <section class="card category-form-card"><div><h2>تطبيق المشغل</h2><p class="muted">هذه الإعدادات تخبر تطبيق المحتوى كيف يفتح المشغل وكيف ينقل المستخدم للمتجر.</p></div><form id="player-form" class="category-form"><div><label for="player-scheme">اسم الرابط الداخلي</label><input id="player-scheme" value="sportsplayer" maxlength="30" placeholder="sportsplayer" required /></div><div><label for="player-package">اسم حزمة أندرويد للمشغل (Package Name)</label><input id="player-package" maxlength="100" placeholder="com.midoalhashmi.zoltrastream" required /></div><div><label for="player-store-url">رابط Google Play المباشر</label><input id="player-store-url" type="url" placeholder="https://play.google.com/store/apps/details?id=..." required /></div><p id="player-message" class="form-message"></p><button type="submit">حفظ إعدادات المشغل</button></form></section>
+          <section class="card legal-form-card">
+            <div><h2>الشروط والأحكام وسياسة الخصوصية</h2><p class="muted">النصوص التي تظهر داخل التطبيق من القائمة الجانبية.</p></div>
+            <form id="legal-form" class="legal-form">
+              <div><label for="legal-terms">الشروط والأحكام</label><textarea id="legal-terms" rows="6" placeholder="اكتب نص الشروط والأحكام هنا…"></textarea></div>
+              <div><label for="legal-privacy">سياسة الخصوصية</label><textarea id="legal-privacy" rows="6" placeholder="اكتب نص سياسة الخصوصية هنا…"></textarea></div>
+              <p id="legal-message" class="form-message"></p>
+              <button type="submit">حفظ النصوص</button>
+            </form>
           </section>
         </section>
       </section>
