@@ -41,6 +41,7 @@
           <button class="nav-button active" type="button" data-panel="categories-panel">الأقسام</button>
           <button class="nav-button" type="button" data-panel="settings-panel">ألوان التطبيق</button>
           <button class="nav-button" type="button" data-panel="messages-panel">الرسائل <span id="messages-badge" class="count-badge hidden"></span></button>
+          <button class="nav-button" type="button" data-panel="matches-panel">المباريات</button>
         </nav>
 
         <section id="categories-panel" class="admin-panel">
@@ -161,6 +162,24 @@
           <section id="messages-error" class="card message-card error-card hidden" role="alert"></section>
           <section id="messages-empty" class="card message-card hidden"><h2>لا توجد رسائل بعد</h2><p>ستظهر هنا فور إرسال أي مستخدم رسالة من التطبيق.</p></section>
           <section id="messages-list" class="channels-list hidden" aria-label="قائمة الرسائل"></section>
+        </section>
+
+        <section id="matches-panel" class="admin-panel hidden">
+          <section class="section-heading">
+            <div>
+              <p class="eyebrow">مباريات اليوم · API-Football</p>
+              <h2>مزامنة المباريات</h2>
+              <p class="muted">يجلب أحدث مباريات اليوم من API-Football ويخزّنها في Firestore. يعمل أيضاً تلقائياً كل ساعة.</p>
+            </div>
+          </section>
+          <section class="card category-form-card">
+            <div>
+              <h2>مزامنة يدوية</h2>
+              <p class="muted">اضغط الزر لتحديث مباريات اليوم فوراً بدل انتظار المزامنة التلقائية.</p>
+            </div>
+            <button id="sync-matches-button" type="button">مزامنة الآن</button>
+            <p id="sync-matches-message" class="form-message" role="status"></p>
+          </section>
         </section>
       </section>
     </main>
