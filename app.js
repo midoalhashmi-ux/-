@@ -21,6 +21,12 @@ import {
   updateDoc,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
+// عنوان Cloudflare Worker وسر المزامنة — نفس القيم المضبوطة عبر
+// "wrangler secret put" لخدمة /refreshMatches. السر هنا يُرسل فقط من
+// المتصفح (بعد تسجيل دخول المالك) إلى الـ Worker مباشرة، ولا يُخزَّن بقاعدة البيانات.
+const WORKER_BASE_URL = 'https://binsheikh-api.binsheikh.workers.dev';
+const ADMIN_SYNC_SECRET = 'Sh3ikh2026Sports!Admin#Sync99';
+
 // إعدادات تطبيق الويب من مشروع Firebase نفسه. لا تضع هنا كلمات مرور المستخدمين.
 const firebaseConfig = {
   apiKey: 'AIzaSyAhbhgXXfR7A9AGsDk0c8GCp0bvvhyzw2g',
@@ -91,6 +97,8 @@ const messagesEmpty = document.querySelector('#messages-empty');
 const messagesList = document.querySelector('#messages-list');
 const messagesCount = document.querySelector('#messages-count');
 const messagesBadge = document.querySelector('#messages-badge');
+const syncMatchesButton = document.querySelector('#sync-matches-button');
+const syncMatchesMessage = document.querySelector('#sync-matches-message');
 let currentChannels = [];
 let currentCategories = [];
 let currentParentId = null;
@@ -601,6 +609,36 @@ document.querySelector('#player-form').addEventListener('submit', async (event) 
   } catch (_) {
     message.classList.add('error');
     message.textContent = 'تعذر حفظ إعدادات المشغل. تحقق من قواعد Firestore.';
+  }
+});
+
+// زر "مزامنة الآن" — يستدعي /refreshMatches على Cloudflare Worker مباشرة
+// من المتصفح، مع هيدر x-admin-key، ويعرض عدد المباريات المُحدَّثة أو رسالة الخطأ.
+syncMatchesButton?.addEventListener('click', async () => {
+  syncMatchesButton.disabled = true;
+  syncMatchesButton.textContent = 'جارٍ المزامنة…';
+  syncMatchesMessage.classList.remove('error');
+  syncMatchesMessage.textContent = '';
+  try {
+    const response = await fetch(`${WORKER_BASE_URL}/refreshMatches`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-key': ADMIN_SYNC_SECRET,
+      },
+      body: JSON.stringify({}),
+    });
+    const data = await response.json();
+    if (!response.ok || data.ok === false) {
+      throw new Error(data.message || `فشل الطلب (${response.status})`);
+    }
+    syncMatchesMessage.textContent = `تم التحديث ✓ عدد المباريات: ${data.count} (${data.date})`;
+  } catch (error) {
+    syncMatchesMessage.classList.add('error');
+    syncMatchesMessage.textContent = `تعذرت المزامنة: ${error.message || error}`;
+  } finally {
+    syncMatchesButton.disabled = false;
+    syncMatchesButton.textContent = 'مزامنة الآن';
   }
 });
 
