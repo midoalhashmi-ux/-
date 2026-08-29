@@ -96,16 +96,24 @@ function normalizeFixture(fx) {
     strAwayTeam: (teams.away && teams.away.name) || '',
     strHomeTeamBadge: (teams.home && teams.home.logo) || null,
     strAwayTeamBadge: (teams.away && teams.away.logo) || null,
+    // معرّفا الفريقين في API-Football — لازمان لجلب معلومات ما قبل
+    // المباراة (getPreMatchInfo): آخر 5 مباريات لكل فريق + آخر مواجهات.
+    homeTeamId: (teams.home && teams.home.id) ? String(teams.home.id) : null,
+    awayTeamId: (teams.away && teams.away.id) ? String(teams.away.id) : null,
     dateEvent,
     strTime: strTime || '00:00:00',
     intHomeScore: goals.home ?? null,
     intAwayScore: goals.away ?? null,
     strStatus: mapFixtureStatus(fixture.status && fixture.status.short),
     strVenue: (fixture.venue && fixture.venue.name) || null,
+    // الجولة وحكم المباراة: موجودان أصلاً في نفس استجابة /fixtures
+    // (league.round و fixture.referee) — لا يحتاجان أي طلب API إضافي.
+    strRound: league.round || null,
+    strReferee: fixture.referee || null,
   };
 }
 
-async function fetchAndStoreFixtures(env, dateStr) {
+async function fetchAndStoreFixtures(env, dateStr, { finalize = false } = {}) {
   const response = await fetch(
       `https://v3.football.api-sports.io/fixtures?date=${dateStr}`,
       { headers: { 'x-apisports-key': env.API_FOOTBALL_KEY } },
@@ -116,6 +124,19 @@ async function fetchAndStoreFixtures(env, dateStr) {
   }
 
   const body = await response.json();
+
+  // API-Football يرجّع HTTP 200 حتى في حالة خطأ فعلي (مفتاح غير صالح،
+  // انتهاء الحصة اليومية/الدقيقية، معامل غير صحيح...) — الخطأ يظهر فقط
+  // داخل body.errors مع response فاضية. بدون هذا الفحص كانت كل هذه
+  // الحالات تُعامَل بصمت على أنها "0 مباراة اليوم" بدل إظهار السبب
+  // الحقيقي، وهذا على الأغلب هو سبب اختفاء كل المباريات فجأة.
+  const apiErrors = body.errors;
+  const hasApiErrors = apiErrors &&
+      (Array.isArray(apiErrors) ? apiErrors.length > 0 : Object.keys(apiErrors).length > 0);
+  if (hasApiErrors) {
+    throw new Error(`API-Football رجّع خطأ: ${JSON.stringify(apiErrors)}`);
+  }
+
   const allEvents = (body.response || []).map(normalizeFixture);
 
   // الطلب بدون أي تصفية يرجّع مئات المباريات يومياً (كل درجات ودوريات
@@ -133,30 +154,67 @@ async function fetchAndStoreFixtures(env, dateStr) {
     updatedAt: new Date(),
     source: 'api-football',
     rawResultsCount: allEvents.length,
+    // finalized = true يعني "يوم ماضٍ اكتملت نتائجه ولن يُعاد جلبه مرة
+    // أخرى" — هذا هو أساس توفير حصة API-Football عند تفعيل نافذة الأيام
+    // الماضية (راجع runScheduledSync أدناه).
+    finalized: finalize,
   });
 
-  return events.length;
+  return { count: events.length, rawCount: allEvents.length };
 }
 
-function dateKeyWithOffset(offsetDays) {
+function todayDateKey() {
+  return dateKeyOffset(0);
+}
+
+// يرجّع مفتاح تاريخ (YYYY-MM-DD) بإزاحة أيام عن اليوم الحالي (UTC).
+// offset موجب = أيام قادمة، سالب = أيام ماضية.
+function dateKeyOffset(offsetDays) {
   const now = new Date();
   now.setUTCDate(now.getUTCDate() + offsetDays);
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
 }
 
-function todayDateKey() {
-  return dateKeyWithOffset(0);
-}
+// ---------------------------------------------------------------------------
+// مزامنة نافذة 7 أيام (من -3 إلى +3) بأقل استهلاك ممكن لحصة API-Football:
+//   - اليوم: تُجلب كل ساعة (نفس ما كان سابقاً) لأنها الوحيدة التي تحتاج
+//     تحديث نتائج مباشر خلال اليوم.
+//   - الأيام القادمة (+1 إلى +3): تُجلب مرة واحدة فقط يومياً (عند الساعة
+//     0 بتوقيت UTC) — الجدول لا يتغير كل ساعة، يكفي تحديث يومي (يلتقط
+//     أي تأجيل/تعديل موعد).
+//   - الأيام الماضية (-1 إلى -3): تُجلب مرة واحدة واحدة فقط طوال عمرها
+//     (عند تحوّلها لأول مرة إلى "يوم ماضٍ")، ثم تُعلَّم finalized=true
+//     ولا يُعاد الاتصال بـ API-Football لأجلها إطلاقاً بعد ذلك — نتيجة
+//     مباراة منتهية لن تتغير.
+//
+// الحصيلة: 24 طلب/يوم (اليوم كل ساعة) + ~4 طلبات إضافية فقط مرة واحدة
+// يومياً (3 أيام قادمة + يوم ماضٍ واحد جديد) ≈ 28 طلب/يوم، بدل 168 لو
+// جُلبت كل الأيام السبعة كل ساعة.
+async function runScheduledSync(env) {
+  await fetchAndStoreFixtures(env, dateKeyOffset(0));
 
-// نزامن أمس/اليوم/غداً معاً — بدونها كانت شاشة "غداً"/"أمس" بالتطبيق تطلع
-// فاضية دايماً لأن الوثيقة الخاصة بذاك التاريخ ما كانت تُنشأ إطلاقاً.
-async function fetchAndStoreThreeDays(env) {
-  const dates = [-1, 0, 1].map(dateKeyWithOffset);
-  const results = {};
-  for (const dateStr of dates) {
-    results[dateStr] = await fetchAndStoreFixtures(env, dateStr);
+  const hour = new Date().getUTCHours();
+  if (hour !== 0) return;
+
+  for (const offset of [1, 2, 3]) {
+    try {
+      await fetchAndStoreFixtures(env, dateKeyOffset(offset));
+    } catch (_) {
+      // تجاهل فشل يوم قادم واحد، لا نوقف بقية المزامنة بسببه.
+    }
   }
-  return results;
+
+  for (const offset of [-1, -2, -3]) {
+    const dateStr = dateKeyOffset(offset);
+    try {
+      const existing = await getDoc(env, `matches_daily/${dateStr}`);
+      if (existing && existing.finalized === true) continue;
+      await fetchAndStoreFixtures(env, dateStr, { finalize: true });
+    } catch (_) {
+      // نفس الشيء — يوم ماضٍ واحد يفشل لا يوقف البقية، وسيُعاد المحاولة
+      // غداً تلقائياً لأنه لن يكون finalized بعد.
+    }
+  }
 }
 
 async function handleRefreshMatches(request, env) {
@@ -165,12 +223,213 @@ async function handleRefreshMatches(request, env) {
     return json({ error: 'permission-denied', message: 'غير مصرح.' }, 403);
   }
 
+  let body = {};
   try {
-    const results = await fetchAndStoreThreeDays(env);
-    const total = Object.values(results).reduce((sum, n) => sum + n, 0);
-    return json({ ok: true, count: total, days: results });
+    body = await request.json();
+  } catch (_) {
+    // body اختياري — لو ما أُرسل، نستخدم تاريخ اليوم.
+  }
+
+  // يدعم مزامنة يوم واحد (body.date) أو نافذة الأيام كاملة دفعة واحدة
+  // (body.syncWindow = true) — مفيد لزر "مزامنة الآن" بلوحة التحكم بعد
+  // نشر هذا التحديث لأول مرة، حتى تمتلئ الأيام السبعة فوراً بدل انتظار
+  // المزامنة التلقائية اليومية.
+  if (body.syncWindow === true) {
+    const results = {};
+    for (const offset of [-3, -2, -1, 0, 1, 2, 3]) {
+      const dateStr = dateKeyOffset(offset);
+      try {
+        results[dateStr] = await fetchAndStoreFixtures(env, dateStr, { finalize: offset < 0 });
+      } catch (error) {
+        results[dateStr] = `error: ${String(error && error.message || error)}`;
+      }
+    }
+    return json({ ok: true, results });
+  }
+
+  const dateStr = body.date || todayDateKey();
+  try {
+    const { count, rawCount } = await fetchAndStoreFixtures(env, dateStr);
+    return json({ ok: true, count, rawCount, date: dateStr });
   } catch (error) {
     return json({ ok: false, message: String(error && error.message || error) }, 500);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3) إحصائيات مباراة واحدة عند فتحها من التطبيق (استحواذ، تسديدات،
+//    ركنيات، بطاقات...) — مع كاش بـ Firestore حتى يشترك كل المستخدمين
+//    بنفس النتيجة المخزّنة بدل أن يستهلك كل ضغطة من كل مستخدم طلب
+//    API-Football منفصل:
+//      - مباراة منتهية: تُخزّن نهائياً، لا يُعاد جلبها أبداً بعد أول مرة.
+//      - مباراة مباشرة: كاش لمدة دقيقة واحدة فقط قبل إعادة الجلب.
+//      - مباراة لم تبدأ: لا يُرسل أي طلب لـ API-Football أصلاً (العميل
+//        يتحقق من الحالة محلياً قبل الاتصال بهذه النقطة).
+// ---------------------------------------------------------------------------
+const LIVE_STATS_CACHE_MS = 60 * 1000;
+
+async function handleGetMatchStats(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch (_) {
+    return json({ error: 'invalid-argument', message: 'body غير صالح.' }, 400);
+  }
+
+  const fixtureId = body && body.fixtureId;
+  if (!fixtureId || typeof fixtureId !== 'string') {
+    return json({ error: 'invalid-argument', message: 'fixtureId مطلوب.' }, 400);
+  }
+
+  const cacheKey = `matches_stats/${fixtureId}`;
+  const cached = await getDoc(env, cacheKey);
+  const now = Date.now();
+
+  if (cached) {
+    const isFresh = cached.matchFinished === true
+        || (now - (cached.fetchedAtMs || 0)) < LIVE_STATS_CACHE_MS;
+    if (isFresh) {
+      return json({ statistics: cached.statistics, cached: true });
+    }
+  }
+
+  let response;
+  try {
+    response = await fetch(
+        `https://v3.football.api-sports.io/fixtures/statistics?fixture=${encodeURIComponent(fixtureId)}`,
+        { headers: { 'x-apisports-key': env.API_FOOTBALL_KEY } },
+    );
+  } catch (_) {
+    if (cached) return json({ statistics: cached.statistics, cached: true, stale: true });
+    return json({ error: 'upstream-error', message: 'تعذر الاتصال بمصدر الإحصائيات.' }, 502);
+  }
+
+  if (!response.ok) {
+    if (cached) return json({ statistics: cached.statistics, cached: true, stale: true });
+    return json({ error: 'upstream-error', message: 'تعذر جلب الإحصائيات حالياً.' }, 502);
+  }
+
+  const data = await response.json();
+  const rawTeams = data.response || [];
+
+  if (rawTeams.length === 0) {
+    return json({ statistics: null, message: 'لا توجد إحصائيات متاحة لهذه المباراة بعد.' });
+  }
+
+  const statistics = rawTeams.map((team) => ({
+    teamId: (team.team && team.team.id) ?? null,
+    teamName: (team.team && team.team.name) || '',
+    stats: (team.statistics || []).map((s) => ({ type: s.type, value: s.value })),
+  }));
+
+  // نعتمد على العميل لإخبارنا هل المباراة انتهت (body.finished) بدل
+  // طلب API إضافي فقط لمعرفة الحالة — الحالة أصلاً معروفة عند العميل
+  // من matches_daily.
+  const matchFinished = body.finished === true;
+
+  await setDoc(env, cacheKey, {
+    statistics,
+    matchFinished,
+    fetchedAtMs: now,
+  });
+
+  return json({ statistics, cached: false });
+}
+
+// ---------------------------------------------------------------------------
+// 4) معلومات ما قبل المباراة: آخر 5 مباريات لكل فريق + آخر مواجهات مباشرة
+//    بينهما. كاش مشترك بين كل المستخدمين لمدة 12 ساعة، بمفتاح مبني على
+//    رقمي الفريقين فقط (بدون ترتيب مضيف/ضيف) — بهذا الشكل أي عدد من
+//    المستخدمين يفتحون أي مباراة بين نفس الفريقين خلال نفس اليوم يشتركون
+//    في 3 طلبات API-Football واحدة فقط بدل 3 طلبات لكل فتحة شاشة.
+// ---------------------------------------------------------------------------
+async function fetchApiFootballJson(env, path) {
+  const response = await fetch(`https://v3.football.api-sports.io${path}`, {
+    headers: { 'x-apisports-key': env.API_FOOTBALL_KEY },
+  });
+  if (!response.ok) {
+    throw new Error(`API-Football HTTP ${response.status}`);
+  }
+  const body = await response.json();
+  const apiErrors = body.errors;
+  const hasApiErrors = apiErrors &&
+      (Array.isArray(apiErrors) ? apiErrors.length > 0 : Object.keys(apiErrors).length > 0);
+  if (hasApiErrors) {
+    throw new Error(`API-Football رجّع خطأ: ${JSON.stringify(apiErrors)}`);
+  }
+  return body.response || [];
+}
+
+// يحوّل مباراة سابقة (من fixtures أو headtohead) إلى نتيجة مبسّطة من
+// منظور فريق واحد (perspectiveTeamId) — فوز/تعادل/خسارة + الخصم + التاريخ.
+// يتجاهل المباريات غير المنتهية (لا نتيجة نهائية بعد).
+function buildFormEntry(fx, perspectiveTeamId) {
+  const fixture = fx.fixture || {};
+  const league = fx.league || {};
+  const teams = fx.teams || {};
+  const goals = fx.goals || {};
+  const statusShort = (fixture.status && fixture.status.short) || '';
+  if (!['FT', 'AET', 'PEN'].includes(statusShort)) return null;
+  if (goals.home == null || goals.away == null) return null;
+
+  const homeId = teams.home && teams.home.id;
+  const isHome = String(homeId) === String(perspectiveTeamId);
+  const dateIso = (fixture.date || '').toString();
+
+  return {
+    opponentEn: isHome ? ((teams.away && teams.away.name) || '') : ((teams.home && teams.home.name) || ''),
+    teamScore: isHome ? goals.home : goals.away,
+    opponentScore: isHome ? goals.away : goals.home,
+    dateEvent: dateIso.split('T')[0] || '',
+    leagueNameEn: league.name || '',
+  };
+}
+
+const PRE_MATCH_CACHE_MS = 12 * 60 * 60 * 1000; // 12 ساعة
+
+async function handleGetPreMatchInfo(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch (_) {
+    return json({ error: 'invalid-argument', message: 'body غير صالح.' }, 400);
+  }
+
+  const homeTeamId = body && body.homeTeamId;
+  const awayTeamId = body && body.awayTeamId;
+  if (!homeTeamId || !awayTeamId) {
+    return json({ error: 'invalid-argument', message: 'homeTeamId و awayTeamId مطلوبان.' }, 400);
+  }
+
+  // مفتاح الكاش لا يعتمد على ترتيب مضيف/ضيف — نفس زوج الفريقين يعيد
+  // استخدام نفس النتيجة المخزّنة بغض النظر عن مين المضيف في هذه المباراة.
+  const pairKey = [String(homeTeamId), String(awayTeamId)].sort().join('_');
+  const cacheKey = `prematch_info/${pairKey}`;
+
+  const cached = await getDoc(env, cacheKey);
+  const now = Date.now();
+  if (cached && (now - (cached.fetchedAtMs || 0)) < PRE_MATCH_CACHE_MS) {
+    return json({ info: cached.info, cached: true });
+  }
+
+  try {
+    const [h2hRaw, homeRaw, awayRaw] = await Promise.all([
+      fetchApiFootballJson(env, `/fixtures/headtohead?h2h=${homeTeamId}-${awayTeamId}&last=5`),
+      fetchApiFootballJson(env, `/fixtures?team=${homeTeamId}&last=5`),
+      fetchApiFootballJson(env, `/fixtures?team=${awayTeamId}&last=5`),
+    ]);
+
+    const info = {
+      h2h: h2hRaw.map((fx) => buildFormEntry(fx, homeTeamId)).filter(Boolean),
+      homeForm: homeRaw.map((fx) => buildFormEntry(fx, homeTeamId)).filter(Boolean),
+      awayForm: awayRaw.map((fx) => buildFormEntry(fx, awayTeamId)).filter(Boolean),
+    };
+
+    await setDoc(env, cacheKey, { info, fetchedAtMs: now });
+    return json({ info, cached: false });
+  } catch (error) {
+    if (cached) return json({ info: cached.info, cached: true, stale: true });
+    return json({ error: 'upstream-error', message: 'تعذر جلب معلومات ما قبل المباراة حالياً.' }, 502);
   }
 }
 
@@ -193,11 +452,19 @@ export default {
       return handleRefreshMatches(request, env);
     }
 
+    if (request.method === 'POST' && url.pathname === '/getMatchStats') {
+      return handleGetMatchStats(request, env);
+    }
+
+    if (request.method === 'POST' && url.pathname === '/getPreMatchInfo') {
+      return handleGetPreMatchInfo(request, env);
+    }
+
     return json({ error: 'not-found', message: 'مسار غير معروف.' }, 404);
   },
 
   // Cron Trigger — مضبوط في wrangler.toml ليعمل كل ساعة تلقائياً.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(fetchAndStoreThreeDays(env));
+    ctx.waitUntil(runScheduledSync(env));
   },
 };
