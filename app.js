@@ -338,7 +338,9 @@ syncMatchesButton?.addEventListener('click', async () => {
     matchesMessage.classList.remove('hidden');
     await loadMatchesStatus();
   } catch (error) {
-    matchesMessage.textContent = 'تعذرت المزامنة. تأكد من ضبط أسرار Worker (راجع cloudflare-worker/README.md) ومن تحديث WORKER_BASE_URL في هذا الملف.';
+    matchesMessage.textContent = error?.message
+      ? `تعذرت المزامنة: ${error.message}`
+      : 'تعذرت المزامنة. تأكد من ضبط أسرار Worker (راجع cloudflare-worker/README.md) ومن تحديث WORKER_BASE_URL في هذا الملف.';
     matchesMessage.classList.remove('hidden');
     matchesMessage.classList.add('error-card');
   } finally {
