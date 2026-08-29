@@ -19,6 +19,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // عنوان Cloudflare Worker (بديل Firebase Cloud Functions — بدون خطة Blaze
@@ -67,7 +68,6 @@ const backOneLevel = document.querySelector('#back-one-level');
 const retryCategories = document.querySelector('#retry-categories');
 const navButtons = document.querySelectorAll('[data-panel]');
 const channelForm = document.querySelector('#channel-form');
-const channelCategory = document.querySelector('#channel-category');
 const channelTitle = document.querySelector('#channel-title');
 const channelSubtitle = document.querySelector('#channel-subtitle');
 const channelStatus = document.querySelector('#channel-status');
@@ -82,6 +82,7 @@ const channelsList = document.querySelector('#channels-list');
 const channelsLoading = document.querySelector('#channels-loading');
 const channelsEmpty = document.querySelector('#channels-empty');
 const channelsCount = document.querySelector('#channels-count');
+const channelsSection = document.querySelector('#channels-section');
 let currentChannels = [];
 let currentCategories = [];
 // مسار التنقل الكامل داخل الأقسام (وليس مجرد "الأب المباشر") — هذا ما
@@ -90,6 +91,78 @@ let currentCategories = [];
 let categoryPath = [];
 function currentParentIdValue() {
   return categoryPath.length ? categoryPath[categoryPath.length - 1].id : null;
+}
+
+// ---- نظام الإضافة الموحّد (زر "+" واحد) — راجع README.md قبل التعديل ----
+const addMenuButton = document.querySelector('#add-menu-button');
+const addMenu = document.querySelector('#add-menu');
+const formCards = {
+  category: document.querySelector('#category-form-card'),
+  channel: document.querySelector('#channel-form-card'),
+  marquee: document.querySelector('#marquee-form-card'),
+};
+const marqueeForm = document.querySelector('#marquee-form');
+const marqueeText = document.querySelector('#marquee-text');
+const marqueeMessage = document.querySelector('#marquee-message');
+const marqueeClearButton = document.querySelector('#marquee-clear-button');
+const marqueeHint = document.querySelector('#marquee-hint');
+
+function hideAllForms() {
+  Object.values(formCards).forEach((card) => card.classList.add('hidden'));
+  addMenu.classList.add('hidden');
+}
+
+function showForm(type) {
+  Object.entries(formCards).forEach(([key, card]) => card.classList.toggle('hidden', key !== type));
+  addMenu.classList.add('hidden');
+}
+
+addMenuButton.addEventListener('click', () => addMenu.classList.toggle('hidden'));
+
+document.addEventListener('click', (event) => {
+  if (!addMenu.classList.contains('hidden') && !event.target.closest('.add-menu-wrap')) {
+    addMenu.classList.add('hidden');
+  }
+});
+
+addMenu.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-add-type]');
+  if (!button) return;
+  const type = button.dataset.addType;
+  const isRoot = categoryPath.length === 0;
+  if (button.dataset.requiresOpen === 'true' && isRoot) {
+    window.alert('افتح قسماً أولاً — القنوات والنصوص المتحركة تُضاف داخل قسم مفتوح.');
+    return;
+  }
+  if (type === 'category') {
+    resetCategoryForm();
+    showForm('category');
+  } else if (type === 'channel') {
+    resetChannelForm();
+    showForm('channel');
+  } else if (type === 'marquee') {
+    prefillMarqueeForm();
+    showForm('marquee');
+  }
+});
+
+document.querySelectorAll('[data-close-form]').forEach((button) => {
+  button.addEventListener('click', () => hideAllForms());
+});
+
+function resetCategoryForm() {
+  categoryForm.reset();
+  categoryParent.value = currentParentIdValue() || '';
+  categoryFormMessage.textContent = '';
+  categoryFormMessage.classList.remove('error');
+}
+
+function prefillMarqueeForm() {
+  const parentId = currentParentIdValue();
+  const category = currentCategories.find((item) => item.id === parentId);
+  marqueeText.value = category?.marqueeText || '';
+  marqueeMessage.textContent = '';
+  marqueeMessage.classList.remove('error');
 }
 
 // ---- المباريات (API-Football عبر Cloud Function) ----
@@ -103,6 +176,7 @@ const messagesEmpty = document.querySelector('#messages-empty');
 const messagesList = document.querySelector('#messages-list');
 const messagesCount = document.querySelector('#messages-count');
 const messagesBadge = document.querySelector('#messages-badge');
+const deleteAllMessagesButton = document.querySelector('#delete-all-messages');
 let currentMessages = [];
 
 // ---- الشروط والأحكام / سياسة الخصوصية ----
@@ -127,18 +201,10 @@ function resetCategories() {
 
 function showCategories(categories) {
   currentCategories = categories;
-  fillChannelCategories();
   categoriesLoading.classList.add('hidden');
   categoriesError.classList.add('hidden');
   renderCurrentCategoryView();
-}
-
-function fillChannelCategories() {
-  const priorValue = channelCategory.value;
-  channelCategory.innerHTML = '<option value="">اختر القسم</option>' + currentCategories
-    .map((category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.title || 'قسم بلا اسم')}</option>`)
-    .join('');
-  channelCategory.value = currentCategories.some((category) => category.id === priorValue) ? priorValue : '';
+  renderChannelsSection();
 }
 
 function renderCurrentCategoryView() {
@@ -159,28 +225,68 @@ function renderCurrentCategoryView() {
   categoriesTitle.textContent = isRoot ? 'الأقسام الرئيسية' : `داخل قسم: ${parentTitle}`;
   categoriesContext.textContent = isRoot
     ? 'اختر قسماً لعرض ما بداخله، أو أضف قسماً رئيسياً.'
-    : `كل قسم تضيفه هنا يصبح فرعياً داخل «${parentTitle}».`;
+    : `كل قسم تضيفه هنا يصبح فرعياً داخل «${parentTitle}». يمكنك أيضاً إضافة قنوات ونص متحرك لهذا القسم من زر «+ إضافة».`;
   categoryFormTitle.textContent = isRoot ? 'إضافة قسم رئيسي' : `إضافة قسم داخل «${parentTitle}»`;
   categoryParent.value = currentParentId || '';
   backOneLevel.classList.toggle('hidden', isRoot);
   renderBreadcrumb();
   categoriesCount.textContent = `${visibleCategories.length} قسم`;
+
+  // تفعيل/تعطيل خياري "قناة" و"نص متحرك" في قائمة الإضافة حسب المستوى.
+  document.querySelectorAll('[data-add-type][data-requires-open="true"]').forEach((button) => {
+    button.classList.toggle('disabled-option', isRoot);
+  });
+
+  if (parent?.marqueeText) {
+    marqueeHint.textContent = `نص متحرك نشط لهذا القسم: «${parent.marqueeText}»`;
+    marqueeHint.classList.remove('hidden');
+  } else {
+    marqueeHint.classList.add('hidden');
+  }
+
   if (visibleCategories.length === 0) {
     categoriesEmpty.classList.remove('hidden');
     categoriesList.classList.add('hidden');
-    return;
+  } else {
+    categoriesEmpty.classList.add('hidden');
+    categoriesList.innerHTML = visibleCategories.map(({ id, ...category }) => {
+      const title = escapeHtml(category.title || 'قسم بلا اسم');
+      const image = category.iconUrl
+        ? `<img class="category-image" src="${escapeHtml(category.iconUrl)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'category-image-placeholder', textContent: '⚽'}))">`
+        : '<div class="category-image-placeholder" aria-hidden="true">⚽</div>';
+      const childrenCount = currentCategories.filter((item) => item.parentId === id).length;
+      const marqueeTag = category.marqueeText ? '<span class="marquee-tag">نص متحرك</span>' : '';
+      return `<article class="card category-card">${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${childrenCount ? `${childrenCount} أقسام داخلية` : 'لا توجد أقسام داخلية'}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}${marqueeTag}</p><button class="open-category-button" type="button" data-open-category="${escapeHtml(id)}">فتح القسم</button><div class="category-tools"><button type="button" data-edit-category="${escapeHtml(id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-category="${escapeHtml(id)}">حذف</button></div></div></article>`;
+    }).join('');
+    categoriesList.classList.remove('hidden');
   }
 
-  categoriesEmpty.classList.add('hidden');
-  categoriesList.innerHTML = visibleCategories.map(({ id, ...category }) => {
-    const title = escapeHtml(category.title || 'قسم بلا اسم');
-    const image = category.iconUrl
-      ? `<img class="category-image" src="${escapeHtml(category.iconUrl)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'category-image-placeholder', textContent: '⚽'}))">`
-      : '<div class="category-image-placeholder" aria-hidden="true">⚽</div>';
-    const childrenCount = currentCategories.filter((item) => item.parentId === id).length;
-    return `<article class="card category-card">${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${childrenCount ? `${childrenCount} أقسام داخلية` : 'لا توجد أقسام داخلية'}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p><button class="open-category-button" type="button" data-open-category="${escapeHtml(id)}">فتح القسم</button><div class="category-tools"><button type="button" data-edit-category="${escapeHtml(id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-category="${escapeHtml(id)}">حذف</button></div></div></article>`;
+  renderChannelsSection();
+}
+
+// قنوات القسم المفتوح حالياً فقط — لا تُعرض القنوات إطلاقاً في جذر الأقسام
+// لأن كل قناة يجب أن تنتمي لقسم مفتوح (categoryId = القسم الحالي).
+function renderChannelsSection() {
+  const currentParentId = currentParentIdValue();
+  const isRoot = categoryPath.length === 0;
+  channelsSection.classList.toggle('hidden', isRoot);
+  if (isRoot) return;
+
+  const visibleChannels = currentChannels.filter((channel) => channel.categoryId === currentParentId);
+  channelsLoading.classList.add('hidden');
+  channelsCount.textContent = `${visibleChannels.length} قناة`;
+  if (!visibleChannels.length) {
+    channelsEmpty.classList.remove('hidden');
+    channelsList.classList.add('hidden');
+    return;
+  }
+  channelsEmpty.classList.add('hidden');
+  channelsList.innerHTML = visibleChannels.map((channel) => {
+    const logo = channel.logoUrl ? `<img class="channel-logo" src="${escapeHtml(channel.logoUrl)}" alt="">` : '<div class="channel-logo category-image-placeholder">⚽</div>';
+    return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p><div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
   }).join('');
-  categoriesList.classList.remove('hidden');
+  channelsList.classList.remove('hidden');
+  loadChannelSources(visibleChannels);
 }
 
 function renderBreadcrumb() {
@@ -229,16 +335,7 @@ async function loadChannels() {
       new Promise((_, reject) => window.setTimeout(() => reject(new Error('timeout')), 12000)),
     ]);
     currentChannels = snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
-    channelsLoading.classList.add('hidden');
-    channelsCount.textContent = `${currentChannels.length} قناة`;
-    if (!currentChannels.length) { channelsEmpty.classList.remove('hidden'); return; }
-    channelsList.innerHTML = currentChannels.map((channel) => {
-      const category = currentCategories.find((item) => item.id === channel.categoryId);
-      const logo = channel.logoUrl ? `<img class="channel-logo" src="${escapeHtml(channel.logoUrl)}" alt="">` : '<div class="channel-logo category-image-placeholder">⚽</div>';
-      return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(category?.title || 'قسم غير محدد')} · ${escapeHtml(channel.subtitle || 'بدون وصف')}</p><div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
-    }).join('');
-    channelsList.classList.remove('hidden');
-    loadChannelSources(currentChannels);
+    renderChannelsSection();
   } catch (_) {
     channelsLoading.classList.add('hidden');
     channelsEmpty.classList.remove('hidden');
@@ -395,6 +492,7 @@ async function loadMessages() {
     } else {
       messagesBadge.classList.add('hidden');
     }
+    if (deleteAllMessagesButton) deleteAllMessagesButton.disabled = currentMessages.length === 0;
 
     if (!currentMessages.length) {
       messagesEmpty.classList.remove('hidden');
@@ -429,6 +527,7 @@ async function loadMessages() {
     messagesLoading.classList.add('hidden');
     messagesEmpty.classList.remove('hidden');
     messagesEmpty.innerHTML = '<h2>تعذر تحميل الرسائل</h2><p>تأكد من صلاحيات القراءة على contactMessages في قواعد Firestore.</p>';
+    if (deleteAllMessagesButton) deleteAllMessagesButton.disabled = true;
   }
 }
 
@@ -444,6 +543,25 @@ messagesList?.addEventListener('click', async (event) => {
     if (!window.confirm('حذف هذه الرسالة نهائياً؟')) return;
     try { await deleteDoc(doc(db, 'contactMessages', remove.dataset.deleteMessage)); await loadMessages(); }
     catch (_) { window.alert('تعذر حذف الرسالة.'); }
+  }
+});
+
+// حذف كل الرسائل دفعة واحدة عبر writeBatch (بدل حذفها رسالة رسالة).
+deleteAllMessagesButton?.addEventListener('click', async () => {
+  if (!currentMessages.length) return;
+  if (!window.confirm(`حذف جميع الرسائل (${currentMessages.length}) نهائياً؟ لا يمكن التراجع.`)) return;
+  deleteAllMessagesButton.disabled = true;
+  deleteAllMessagesButton.textContent = 'جارٍ الحذف…';
+  try {
+    const batch = writeBatch(db);
+    currentMessages.forEach((message) => batch.delete(doc(db, 'contactMessages', message.id)));
+    await batch.commit();
+    await loadMessages();
+  } catch (_) {
+    window.alert('تعذر حذف الرسائل. تحقق من قواعد Firestore.');
+    deleteAllMessagesButton.disabled = false;
+  } finally {
+    deleteAllMessagesButton.textContent = 'حذف الكل';
   }
 });
 
@@ -526,7 +644,7 @@ categoriesList.addEventListener('click', (event) => {
   const id = button.dataset.openCategory;
   const category = currentCategories.find((item) => item.id === id);
   categoryPath = [...categoryPath, { id, title: category?.title || '' }];
-  categoryFormMessage.textContent = '';
+  hideAllForms();
   renderCurrentCategoryView();
 });
 
@@ -541,6 +659,7 @@ async function editCategory(id) {
 async function deleteCategory(id) {
   const category = currentCategories.find((item) => item.id === id);
   if (currentCategories.some((item) => item.parentId === id)) return window.alert('لا يمكن حذف قسم يحتوي أقساماً داخلية.');
+  if (currentChannels.some((item) => item.categoryId === id)) return window.alert('لا يمكن حذف قسم يحتوي قنوات. احذف قنواته أولاً.');
   if (!window.confirm(`حذف «${category?.title || ''}»؟`)) return;
   try { await deleteDoc(doc(db, 'categories', id)); await loadCategories(); }
   catch (_) { window.alert('تعذر الحذف.'); }
@@ -550,7 +669,7 @@ async function deleteCategory(id) {
 // عند التنقل بين أقسام متداخلة.
 backOneLevel.addEventListener('click', () => {
   categoryPath = categoryPath.slice(0, -1);
-  categoryFormMessage.textContent = '';
+  hideAllForms();
   renderCurrentCategoryView();
 });
 
@@ -560,7 +679,7 @@ categoriesBreadcrumb.addEventListener('click', (event) => {
   if (!button) return;
   const index = Number(button.dataset.breadcrumbIndex);
   categoryPath = index < 0 ? [] : categoryPath.slice(0, index + 1);
-  categoryFormMessage.textContent = '';
+  hideAllForms();
   renderCurrentCategoryView();
 });
 
@@ -584,8 +703,7 @@ categoryForm.addEventListener('submit', async (event) => {
       isPremium: false,
       createdAt: serverTimestamp(),
     });
-    categoryForm.reset();
-    categoryParent.value = currentParentIdValue() || '';
+    resetCategoryForm();
     categoryFormMessage.textContent = 'تمت إضافة القسم. سيظهر فوراً في قائمة الأقسام والتطبيق.';
     await loadCategories();
   } catch (error) {
@@ -599,13 +717,15 @@ categoryForm.addEventListener('submit', async (event) => {
 
 function resetChannelForm() {
   channelForm.reset(); channelEditId.value = ''; channelFormTitle.textContent = 'إضافة قناة';
-  channelSaveButton.textContent = 'إضافة القناة'; channelCancelButton.classList.add('hidden'); channelFormMessage.textContent = '';
+  channelSaveButton.textContent = 'إضافة القناة'; channelFormMessage.textContent = '';
 }
 
 channelForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (!channelCategory.value || !channelTitle.value.trim()) return;
-  const data = { categoryId: channelCategory.value, title: channelTitle.value.trim(), subtitle: channelSubtitle.value.trim(), status: channelStatus.value, logoUrl: channelLogo.value.trim() || null, playerChannelKey: channelPlayerKey.value.trim() || null, updatedAt: serverTimestamp() };
+  const categoryId = currentParentIdValue();
+  if (!categoryId) { channelFormMessage.textContent = 'افتح قسماً أولاً قبل إضافة قناة.'; channelFormMessage.classList.add('error'); return; }
+  if (!channelTitle.value.trim()) return;
+  const data = { categoryId, title: channelTitle.value.trim(), subtitle: channelSubtitle.value.trim(), status: channelStatus.value, logoUrl: channelLogo.value.trim() || null, playerChannelKey: channelPlayerKey.value.trim() || null, updatedAt: serverTimestamp() };
   channelSaveButton.disabled = true;
   try {
     if (channelEditId.value) await updateDoc(doc(db, 'channels', channelEditId.value), data);
@@ -617,9 +737,48 @@ channelForm.addEventListener('submit', async (event) => {
 channelCancelButton.addEventListener('click', resetChannelForm);
 channelsList.addEventListener('click', async (event) => {
   const edit = event.target.closest('[data-edit-channel]'); const remove = event.target.closest('[data-delete-channel]'); const saveSource = event.target.closest('[data-save-source]');
-  if (edit) { const channel = currentChannels.find((item) => item.id === edit.dataset.editChannel); if (!channel) return; channelEditId.value = channel.id; channelCategory.value = channel.categoryId || ''; channelTitle.value = channel.title || ''; channelSubtitle.value = channel.subtitle || ''; channelStatus.value = channel.status || 'upcoming'; channelLogo.value = channel.logoUrl || ''; channelPlayerKey.value = channel.playerChannelKey || ''; channelFormTitle.textContent = `تعديل: ${channel.title}`; channelSaveButton.textContent = 'حفظ التعديل'; channelCancelButton.classList.remove('hidden'); return; }
+  if (edit) {
+    const channel = currentChannels.find((item) => item.id === edit.dataset.editChannel); if (!channel) return;
+    channelEditId.value = channel.id; channelTitle.value = channel.title || ''; channelSubtitle.value = channel.subtitle || ''; channelStatus.value = channel.status || 'upcoming'; channelLogo.value = channel.logoUrl || ''; channelPlayerKey.value = channel.playerChannelKey || '';
+    channelFormTitle.textContent = `تعديل: ${channel.title}`; channelSaveButton.textContent = 'حفظ التعديل'; channelFormMessage.textContent = '';
+    showForm('channel');
+    return;
+  }
   if (remove) { const channel = currentChannels.find((item) => item.id === remove.dataset.deleteChannel); if (!window.confirm(`حذف «${channel?.title || ''}»؟`)) return; try { await deleteDoc(doc(db, 'channels', remove.dataset.deleteChannel)); await loadChannels(); } catch (_) { window.alert('تعذر الحذف.'); } return; }
   if (saveSource) { await saveChannelSource(saveSource.dataset.saveSource); }
+});
+
+// ---- نص متحرك (marqueeText) — حقل على مستند القسم المفتوح حالياً ----
+marqueeForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const parentId = currentParentIdValue();
+  if (!parentId) return;
+  const value = marqueeText.value.trim();
+  marqueeMessage.textContent = '';
+  marqueeMessage.classList.remove('error');
+  try {
+    await updateDoc(doc(db, 'categories', parentId), { marqueeText: value || null });
+    marqueeMessage.textContent = 'تم حفظ النص المتحرك.';
+    await loadCategories();
+  } catch (_) {
+    marqueeMessage.textContent = 'تعذر الحفظ. تحقق من قواعد Firestore.';
+    marqueeMessage.classList.add('error');
+  }
+});
+
+marqueeClearButton.addEventListener('click', async () => {
+  const parentId = currentParentIdValue();
+  if (!parentId) return;
+  marqueeText.value = '';
+  try {
+    await updateDoc(doc(db, 'categories', parentId), { marqueeText: null });
+    marqueeMessage.textContent = 'تم حذف النص المتحرك.';
+    marqueeMessage.classList.remove('error');
+    await loadCategories();
+  } catch (_) {
+    marqueeMessage.textContent = 'تعذر الحذف. تحقق من قواعد Firestore.';
+    marqueeMessage.classList.add('error');
+  }
 });
 
 document.querySelector('#theme-form').addEventListener('submit', async (event) => {

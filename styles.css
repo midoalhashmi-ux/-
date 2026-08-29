@@ -112,3 +112,23 @@ button:disabled { opacity: .65; cursor: wait; }
 textarea { width: 100%; color: #f8fafc; background: #17233a; border: 1px solid #3a4d6b; border-radius: 10px; padding: 12px; outline: none; font: inherit; resize: vertical; line-height: 1.6; }
 textarea:focus { border-color: #38bdf8; }
 @media (max-width: 850px) { .matches-status-card { flex-direction: column; align-items: stretch; } }
+
+/* ==========================================================================
+   نظام الإضافة الموحّد (زر "+ إضافة") — راجع README.md
+   ========================================================================== */
+.add-menu-wrap { position: relative; }
+.add-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; display: flex; flex-direction: column; min-width: 180px; padding: 6px; background: #101c30; border: 1px solid #3a4d6b; border-radius: 12px; box-shadow: 0 12px 30px rgba(0, 0, 0, .35); }
+.add-menu button { width: 100%; margin: 0; padding: 10px 12px; text-align: right; color: #e6edf7; background: transparent; border-radius: 8px; font-weight: normal; }
+.add-menu button:hover { background: #1c2c47; }
+.add-menu button.disabled-option { opacity: .45; }
+.marquee-hint { margin: -6px 0 14px; padding: 10px 14px; color: #bfe8ff; background: #12365b; border-radius: 10px; font-size: .85rem; }
+.marquee-tag { color: #c4b5fd; }
+.marquee-form { margin: 0; }
+.marquee-field label { margin-top: 0; }
+.form-actions { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.form-actions button { width: auto; margin-top: 0; white-space: nowrap; }
+#channels-section { margin-top: 30px; }
+.danger-button { color: #fecaca; border-color: #7f1d1d; }
+.danger-button:disabled { opacity: .4; cursor: not-allowed; }
+#messages-panel .section-actions { display: flex; align-items: center; gap: 10px; }
+@media (max-width: 680px) { .add-menu-wrap { width: 100%; } .add-menu { left: auto; right: 0; width: 100%; } .form-actions button { width: 100%; } }
