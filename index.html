@@ -38,33 +38,43 @@
         </header>
 
         <nav class="admin-nav" aria-label="إدارة اللوحة">
-          <button class="nav-button active" type="button" data-panel="categories-panel">الأقسام</button>
-          <button class="nav-button" type="button" data-panel="channels-panel">القنوات</button>
+          <button class="nav-button active" type="button" data-panel="home-panel">الرئيسية</button>
           <button class="nav-button" type="button" data-panel="matches-panel">المباريات</button>
           <button class="nav-button" type="button" data-panel="messages-panel">الرسائل <span id="messages-badge" class="count-badge hidden"></span></button>
           <button class="nav-button" type="button" data-panel="settings-panel">الإعدادات</button>
         </nav>
 
-        <section id="categories-panel" class="admin-panel">
+        <section id="home-panel" class="admin-panel">
 
         <section class="section-heading">
           <div>
-            <p class="eyebrow">إدارة المحتوى · إضافة قسم رئيسي</p>
+            <p class="eyebrow">إدارة المحتوى</p>
             <h2 id="categories-title">الأقسام الرئيسية</h2>
-            <p id="categories-context" class="muted">أضف اسماً وصورة خلفية للقسم.</p>
+            <p id="categories-context" class="muted">اختر قسماً لعرض ما بداخله، أو أضف عنصراً من زر «+ إضافة».</p>
           </div>
           <div class="section-actions">
             <button id="back-to-root" class="secondary-button hidden" type="button">العودة للأقسام الرئيسية</button>
+            <div class="add-menu-wrap">
+              <button id="add-menu-toggle" class="add-menu-toggle" type="button" aria-haspopup="true" aria-expanded="false">+ إضافة</button>
+              <div id="add-menu" class="add-menu hidden" role="menu">
+                <button type="button" data-add-type="category" role="menuitem">📁 قسم</button>
+                <button type="button" data-add-type="channel" role="menuitem">📺 قناة</button>
+                <button type="button" data-add-type="marquee" role="menuitem">🔄 نص متحرك</button>
+                <button type="button" data-add-type="text-block" disabled role="menuitem">📝 نص كتابي (قريباً)</button>
+                <button type="button" data-add-type="cell" disabled role="menuitem">🧩 خلية للقسم (قريباً)</button>
+              </div>
+            </div>
             <span id="categories-count" class="count-badge">جارٍ التحميل…</span>
           </div>
         </section>
 
-        <section class="card category-form-card">
+        <section id="category-form-card" class="card category-form-card hidden">
           <div>
             <h2 id="category-form-title">إضافة قسم رئيسي</h2>
             <p class="muted">مثال: كرة القدم أو القنوات الرياضية.</p>
           </div>
           <form id="category-form" class="category-form">
+            <input id="category-edit-id" type="hidden" />
             <div>
               <label for="category-title">اسم القسم</label>
               <input id="category-title" name="title" type="text" maxlength="50" placeholder="مثال: كرة القدم" required />
@@ -75,9 +85,50 @@
             </div>
             <input id="category-parent" name="parentId" type="hidden" value="" />
             <p id="category-form-message" class="form-message" role="status"></p>
-            <button id="category-save-button" type="submit">إضافة القسم</button>
+            <div class="form-card-actions">
+              <button id="category-save-button" type="submit">إضافة القسم</button>
+              <button id="category-close-button" class="secondary-button" type="button">إغلاق</button>
+            </div>
           </form>
         </section>
+
+        <section id="channel-form-card" class="card category-form-card channel-form-card hidden">
+          <div><h2 id="channel-form-title">إضافة قناة</h2><p class="muted">بيانات العرض فقط؛ رابط البث من بطاقة القناة نفسها بعد الإنشاء.</p></div>
+          <form id="channel-form" class="channel-form">
+            <input id="channel-edit-id" type="hidden" />
+            <input id="channel-category" type="hidden" />
+            <div><label for="channel-title">اسم القناة</label><input id="channel-title" required maxlength="50" placeholder="مثال: SSC 1" /></div>
+            <div><label for="channel-subtitle">وصف مختصر</label><input id="channel-subtitle" maxlength="90" placeholder="مثال: مباريات مباشرة" /></div>
+            <div><label for="channel-status">الحالة</label><select id="channel-status"><option value="live">مباشر الآن</option><option value="upcoming">قريباً</option><option value="ended">انتهى</option></select></div>
+            <div><label for="channel-logo">رابط الشعار <span class="optional-label">اختياري</span></label><input id="channel-logo" type="url" placeholder="https://example.com/logo.png" /></div>
+            <div><label for="channel-player-key">مفتاح القناة في المشغل <span class="optional-label">اختياري حالياً</span></label><input id="channel-player-key" maxlength="80" placeholder="مثال: ssc-1-hd" /></div>
+            <p id="channel-form-message" class="form-message" role="status"></p>
+            <div class="form-card-actions">
+              <button id="channel-save-button" type="submit">إضافة القناة</button>
+              <button id="channel-close-button" class="secondary-button" type="button">إغلاق</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="marquee-form-card" class="card category-form-card hidden">
+          <div>
+            <h2 id="marquee-form-title">نص متحرك للقسم</h2>
+            <p class="muted">يظهر كشريط نص متحرك أعلى محتوى هذا القسم داخل التطبيق. احفظه فارغاً لإخفائه.</p>
+          </div>
+          <form id="marquee-form" class="marquee-form">
+            <div>
+              <label for="marquee-text">النص</label>
+              <textarea id="marquee-text" rows="2" maxlength="200" placeholder="مثال: أهلاً بكم في قسم كرة القدم…"></textarea>
+            </div>
+            <p id="marquee-form-message" class="form-message" role="status"></p>
+            <div class="form-card-actions">
+              <button id="marquee-save-button" type="submit">حفظ النص المتحرك</button>
+              <button id="marquee-close-button" class="secondary-button" type="button">إغلاق</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="marquee-preview" class="card marquee-preview hidden"></section>
 
         <section id="categories-loading" class="card loading-card">
           <span class="spinner" aria-hidden="true"></span>
@@ -88,39 +139,19 @@
         <button id="retry-categories" class="secondary-button hidden retry-button" type="button">إعادة محاولة تحميل الأقسام</button>
         <section id="categories-empty" class="card message-card hidden">
           <h2>لا توجد أقسام بعد</h2>
-          <p>هذا طبيعي إذا لم تتم إضافة بيانات للتطبيق حتى الآن.</p>
+          <p>هذا طبيعي إذا لم تتم إضافة بيانات للتطبيق حتى الآن. اضغط «+ إضافة» لإنشاء أول قسم.</p>
         </section>
         <section id="categories-list" class="categories-grid hidden" aria-label="قائمة الأقسام"></section>
 
-        <section class="next-step card">
-          <span>الخطوة القادمة</span>
-          <p>الأقسام الفرعية وتعديل الاسم.</p>
-        </section>
-        </section>
-
-        <section id="channels-panel" class="admin-panel hidden">
-          <section class="section-heading">
-            <div><p class="eyebrow">إدارة المحتوى</p><h2>القنوات</h2><p class="muted">اربط كل قناة بالقسم الفرعي المناسب.</p></div>
-            <span id="channels-count" class="count-badge">جارٍ التحميل…</span>
+        <section id="channels-section" class="hidden">
+          <section class="section-heading channels-subheading">
+            <div><p class="eyebrow">قنوات هذا القسم</p><h3 id="channels-title">القنوات</h3></div>
+            <span id="channels-count" class="count-badge">0 قناة</span>
           </section>
-          <section class="card category-form-card channel-form-card">
-            <div><h2 id="channel-form-title">إضافة قناة</h2><p class="muted">بيانات العرض فقط؛ رابط البث الآمن مرحلة لاحقة.</p></div>
-            <form id="channel-form" class="channel-form">
-              <input id="channel-edit-id" type="hidden" />
-              <div><label for="channel-category">القسم</label><select id="channel-category" required></select></div>
-              <div><label for="channel-title">اسم القناة</label><input id="channel-title" required maxlength="50" placeholder="مثال: SSC 1" /></div>
-              <div><label for="channel-subtitle">وصف مختصر</label><input id="channel-subtitle" maxlength="90" placeholder="مثال: مباريات مباشرة" /></div>
-              <div><label for="channel-status">الحالة</label><select id="channel-status"><option value="live">مباشر الآن</option><option value="upcoming">قريباً</option><option value="ended">انتهى</option></select></div>
-              <div><label for="channel-logo">رابط الشعار <span class="optional-label">اختياري</span></label><input id="channel-logo" type="url" placeholder="https://example.com/logo.png" /></div>
-              <div><label for="channel-player-key">مفتاح القناة في المشغل <span class="optional-label">اختياري حالياً</span></label><input id="channel-player-key" maxlength="80" placeholder="مثال: ssc-1-hd" /></div>
-              <p id="channel-form-message" class="form-message" role="status"></p>
-              <button id="channel-save-button" type="submit">إضافة القناة</button>
-              <button id="channel-cancel-button" class="secondary-button hidden" type="button">إلغاء التعديل</button>
-            </form>
-          </section>
-          <section id="channels-loading" class="card loading-card"><span class="spinner"></span><p>جارٍ قراءة القنوات…</p></section>
-          <section id="channels-empty" class="card message-card hidden"><h2>لا توجد قنوات بعد</h2><p>أضف أول قناة من النموذج أعلاه.</p></section>
+          <section id="channels-loading" class="card loading-card hidden"><span class="spinner"></span><p>جارٍ قراءة القنوات…</p></section>
+          <section id="channels-empty" class="card message-card hidden"><h2>لا توجد قنوات بعد</h2><p>أضف أول قناة من زر «+ إضافة» أعلاه.</p></section>
           <section id="channels-list" class="channels-list hidden"></section>
+        </section>
         </section>
 
         <section id="matches-panel" class="admin-panel hidden">
