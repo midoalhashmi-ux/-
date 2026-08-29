@@ -5,7 +5,7 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; }
+body { margin: 0; min-width: 320px; overflow-x: hidden; }
 button, input { font: inherit; }
 select { font: inherit; }
 
@@ -106,6 +106,37 @@ button:disabled { opacity: .65; cursor: wait; }
 .next-step p { margin: 0; color: #d7e2f3; }
 @media (max-width: 850px) { .category-form-card, .category-form, .channel-form { grid-template-columns: 1fr; } .category-form button, .channel-form button { width: 100%; } .form-card-actions { flex-direction: column; } .form-card-actions button { width: 100%; } .add-menu { right: auto; left: 0; } }
 @media (max-width: 680px) { .page-shell { padding-top: 22px; } .topbar, .section-heading, .next-step { align-items: flex-start; flex-direction: column; } .section-actions { align-items: flex-start; flex-direction: column; } .categories-grid { grid-template-columns: 1fr; } }
+
+/* هواتف (آيفون وغيره) — الاستعلامات فوق تغطي الأعمدة والاتجاه العام،
+   هذا القسم يعالج عناصر ضاقت أو تجاوزت عرض الشاشة على هاتف فعلي رغم
+   ذلك: القائمة الجانبية، قائمة "+ إضافة"، أزرار القناة، وتباعد البطاقات. */
+@media (max-width: 480px) {
+  .page-shell { width: calc(100% - 20px); padding: 16px 0; }
+  .card { border-radius: 14px; }
+  .centered-view, .auth-card { margin: 8vh auto; padding: 22px 18px; }
+  .topbar { padding: 16px 18px; }
+  .topbar #logout-button { width: 100%; }
+  .admin-nav { gap: 6px; }
+  .nav-button { flex: 1 1 calc(50% - 6px); padding: 10px 8px; font-size: .86rem; }
+  .category-form-card, .legal-form-card { padding: 16px; }
+  .section-heading h2 { font-size: 1.25rem; }
+  .section-actions { width: 100%; }
+  .section-actions #back-to-root { width: 100%; }
+  .add-menu-wrap { width: 100%; }
+  .add-menu-toggle { width: 100%; }
+  .add-menu { left: 0; right: 0; min-width: 0; width: 100%; }
+  #categories-count { align-self: flex-start; }
+  .channel-item { flex-wrap: wrap; }
+  .channel-actions { width: 100%; }
+  .channel-actions button { flex: 1; }
+  .channel-source { width: 100%; }
+  .channel-source .source-input { min-width: 0; width: 100%; }
+  .channel-source button { width: 100%; }
+  .category-tools { grid-template-columns: 1fr; }
+  .matches-status-card { padding: 18px; }
+  .matches-status-card button { width: 100%; }
+  .message-actions button { flex: 1; }
+}
 
 .matches-status-card { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 22px 26px; margin-bottom: 20px; }
 .matches-status-card button { width: auto; white-space: nowrap; }
