@@ -128,6 +128,23 @@ const legalTerms = document.querySelector('#legal-terms');
 const legalPrivacy = document.querySelector('#legal-privacy');
 const legalMessage = document.querySelector('#legal-message');
 
+// ---- الإعلانات (settings/ads) ----
+const adsForm = document.querySelector('#ads-form');
+const adsEnabled = document.querySelector('#ads-enabled');
+const adsMessage = document.querySelector('#ads-message');
+const admobAppId = document.querySelector('#admob-app-id');
+const admobBannerId = document.querySelector('#admob-banner-id');
+const admobInterstitialId = document.querySelector('#admob-interstitial-id');
+const admobRewardedId = document.querySelector('#admob-rewarded-id');
+const applovinSdkKey = document.querySelector('#applovin-sdk-key');
+const applovinBannerId = document.querySelector('#applovin-banner-id');
+const applovinInterstitialId = document.querySelector('#applovin-interstitial-id');
+const applovinRewardedId = document.querySelector('#applovin-rewarded-id');
+const unityGameId = document.querySelector('#unity-game-id');
+const unityBannerId = document.querySelector('#unity-banner-id');
+const unityInterstitialId = document.querySelector('#unity-interstitial-id');
+const unityRewardedId = document.querySelector('#unity-rewarded-id');
+
 function showView(name) {
   Object.entries(views).forEach(([key, element]) => element.classList.toggle('hidden', key !== name));
 }
@@ -583,6 +600,66 @@ legalForm?.addEventListener('submit', async (event) => {
   }
 });
 
+// ==========================================================================
+// الإعلانات — أكواد الشبكات ومفتاح التشغيل/الإيقاف (settings/ads)
+// ==========================================================================
+async function loadAdsSettings() {
+  try {
+    const snapshot = await getDoc(doc(db, 'settings', 'ads'));
+    const data = snapshot.data();
+    if (!data) return;
+    adsEnabled.checked = data.enabled !== false;
+    admobAppId.value = data.admob?.appId || '';
+    admobBannerId.value = data.admob?.bannerId || '';
+    admobInterstitialId.value = data.admob?.interstitialId || '';
+    admobRewardedId.value = data.admob?.rewardedId || '';
+    applovinSdkKey.value = data.applovin?.sdkKey || '';
+    applovinBannerId.value = data.applovin?.bannerId || '';
+    applovinInterstitialId.value = data.applovin?.interstitialId || '';
+    applovinRewardedId.value = data.applovin?.rewardedId || '';
+    unityGameId.value = data.unity?.gameId || '';
+    unityBannerId.value = data.unity?.bannerId || '';
+    unityInterstitialId.value = data.unity?.interstitialId || '';
+    unityRewardedId.value = data.unity?.rewardedId || '';
+  } catch (_) {
+    // إعدادات الإعلانات اختيارية إلى أن تُضاف لأول مرة من هنا.
+  }
+}
+
+adsForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  adsMessage.textContent = '';
+  adsMessage.classList.remove('error');
+  try {
+    await setDoc(doc(db, 'settings', 'ads'), {
+      enabled: adsEnabled.checked,
+      admob: {
+        appId: admobAppId.value.trim(),
+        bannerId: admobBannerId.value.trim(),
+        interstitialId: admobInterstitialId.value.trim(),
+        rewardedId: admobRewardedId.value.trim(),
+      },
+      applovin: {
+        sdkKey: applovinSdkKey.value.trim(),
+        bannerId: applovinBannerId.value.trim(),
+        interstitialId: applovinInterstitialId.value.trim(),
+        rewardedId: applovinRewardedId.value.trim(),
+      },
+      unity: {
+        gameId: unityGameId.value.trim(),
+        bannerId: unityBannerId.value.trim(),
+        interstitialId: unityInterstitialId.value.trim(),
+        rewardedId: unityRewardedId.value.trim(),
+      },
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    adsMessage.textContent = 'تم حفظ إعدادات الإعلانات، وستُطبَّق فوراً في التطبيق.';
+  } catch (_) {
+    adsMessage.textContent = 'تعذر الحفظ. تحقق من قواعد Firestore.';
+    adsMessage.classList.add('error');
+  }
+});
+
 onAuthStateChanged(auth, (user) => {
   if (user) {
     document.querySelector('#owner-email').textContent = user.email || 'المالك';
@@ -593,6 +670,7 @@ onAuthStateChanged(auth, (user) => {
     loadMatchesStatus();
     loadMessages();
     loadLegalSettings();
+    loadAdsSettings();
     return;
   }
   showView('login');

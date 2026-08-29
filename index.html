@@ -41,6 +41,7 @@
           <button class="nav-button active" type="button" data-panel="home-panel">الرئيسية</button>
           <button class="nav-button" type="button" data-panel="matches-panel">المباريات</button>
           <button class="nav-button" type="button" data-panel="messages-panel">الرسائل <span id="messages-badge" class="count-badge hidden"></span></button>
+          <button class="nav-button" type="button" data-panel="ads-panel">الإعلانات</button>
           <button class="nav-button" type="button" data-panel="settings-panel">الإعدادات</button>
         </nav>
 
@@ -184,6 +185,48 @@
           <section id="messages-loading" class="card loading-card"><span class="spinner"></span><p>جارٍ قراءة الرسائل…</p></section>
           <section id="messages-empty" class="card message-card hidden"><h2>لا توجد رسائل بعد</h2><p>ستظهر هنا فور إرسال أي رسالة من التطبيق.</p></section>
           <section id="messages-list" class="channels-list hidden"></section>
+        </section>
+
+        <section id="ads-panel" class="admin-panel hidden">
+          <section class="section-heading">
+            <div>
+              <p class="eyebrow">إعدادات التطبيق</p>
+              <h2>الإعلانات</h2>
+              <p class="muted">أكواد شبكات الإعلانات، ومفتاح لتشغيل الإعلانات أو إيقافها بالكامل في التطبيق.</p>
+            </div>
+          </section>
+          <section class="card category-form-card">
+            <div>
+              <h2>شبكات الإعلانات</h2>
+              <p class="muted">اترك أي خانة فارغة إن لم تكن تستخدم تلك الشبكة. عند إيقاف المفتاح العلوي لا تظهر أي إعلانات مهما كانت الأكواد المدخلة.</p>
+            </div>
+            <form id="ads-form" class="category-form">
+              <div class="ads-master-toggle">
+                <label class="protect-toggle"><input id="ads-enabled" type="checkbox" checked> تفعيل الإعلانات في التطبيق</label>
+              </div>
+
+              <div class="ads-group-heading"><h3>AdMob</h3></div>
+              <div><label for="admob-app-id">معرّف التطبيق (App ID)</label><input id="admob-app-id" maxlength="120" placeholder="ca-app-pub-xxxxxxxxxxxxxxxx~xxxxxxxxxx" /></div>
+              <div><label for="admob-banner-id">كود إعلان البانر</label><input id="admob-banner-id" maxlength="120" placeholder="ca-app-pub-xxxxxxxxxxxxxxxx/xxxxxxxxxx" /></div>
+              <div><label for="admob-interstitial-id">كود الإعلان البيني</label><input id="admob-interstitial-id" maxlength="120" placeholder="ca-app-pub-xxxxxxxxxxxxxxxx/xxxxxxxxxx" /></div>
+              <div><label for="admob-rewarded-id">كود الإعلان المُكافئ</label><input id="admob-rewarded-id" maxlength="120" placeholder="ca-app-pub-xxxxxxxxxxxxxxxx/xxxxxxxxxx" /></div>
+
+              <div class="ads-group-heading"><h3>AppLovin (لوفين)</h3></div>
+              <div><label for="applovin-sdk-key">مفتاح SDK</label><input id="applovin-sdk-key" maxlength="200" placeholder="SDK Key" /></div>
+              <div><label for="applovin-banner-id">كود إعلان البانر</label><input id="applovin-banner-id" maxlength="120" placeholder="Ad Unit ID" /></div>
+              <div><label for="applovin-interstitial-id">كود الإعلان البيني</label><input id="applovin-interstitial-id" maxlength="120" placeholder="Ad Unit ID" /></div>
+              <div><label for="applovin-rewarded-id">كود الإعلان المُكافئ</label><input id="applovin-rewarded-id" maxlength="120" placeholder="Ad Unit ID" /></div>
+
+              <div class="ads-group-heading"><h3>Unity Ads</h3></div>
+              <div><label for="unity-game-id">معرّف اللعبة/التطبيق (Game ID)</label><input id="unity-game-id" maxlength="120" placeholder="Game ID" /></div>
+              <div><label for="unity-banner-id">كود إعلان البانر</label><input id="unity-banner-id" maxlength="120" placeholder="Placement ID" /></div>
+              <div><label for="unity-interstitial-id">كود الإعلان البيني</label><input id="unity-interstitial-id" maxlength="120" placeholder="Placement ID" /></div>
+              <div><label for="unity-rewarded-id">كود الإعلان المُكافئ</label><input id="unity-rewarded-id" maxlength="120" placeholder="Placement ID" /></div>
+
+              <p id="ads-message" class="form-message"></p>
+              <div class="form-card-actions"><button id="ads-save-button" type="submit">حفظ إعدادات الإعلانات</button></div>
+            </form>
+          </section>
         </section>
 
         <section id="settings-panel" class="admin-panel hidden">
