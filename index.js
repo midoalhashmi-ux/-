@@ -77,6 +77,40 @@ function mapFixtureStatus(shortStatus) {
   return 'NS';
 }
 
+// ---------------------------------------------------------------------------
+// قائمة الدول المسموحة — نفس النمط الملحوظ في تطبيقات النتائج المرجعية
+// (تعرض كل دوريات الدولة المهمة، وليس فقط الدرجة الأولى — مثلاً الدوري
+// الإسباني يشمل الدرجة الثانية، والفرنسي يشمل الدرجة الثانية، وهكذا)،
+// بدل قائمة أسماء دوريات محددة حرفياً كانت تستبعد أي دوري لا يطابق نصياً.
+// المباريات الدولية/القارية (كأس العالم، دوري الأبطال بكل نسخه...) تصل
+// من API-Football بقيمة country = "World" فتُقبل دائماً.
+// ---------------------------------------------------------------------------
+const ALLOWED_COUNTRIES = new Set([
+  'saudi arabia',
+  'iraq',
+  'egypt',
+  'united arab emirates',
+  'qatar',
+  'kuwait',
+  'morocco',
+  'tunisia',
+  'algeria',
+  'jordan',
+  'england',
+  'spain',
+  'italy',
+  'germany',
+  'france',
+  'portugal',
+  'turkey',
+  'brazil',
+  'world',
+]);
+
+function isAllowedCountry(country) {
+  return ALLOWED_COUNTRIES.has((country || '').trim().toLowerCase());
+}
+
 function normalizeFixture(fx) {
   const fixture = fx.fixture || {};
   const league = fx.league || {};
@@ -92,6 +126,7 @@ function normalizeFixture(fx) {
     idEvent: String(fixture.id ?? ''),
     strLeague: league.name || '',
     strLeagueBadge: league.logo || null,
+    strCountry: league.country || '',
     strHomeTeam: (teams.home && teams.home.name) || '',
     strAwayTeam: (teams.away && teams.away.name) || '',
     strHomeTeamBadge: (teams.home && teams.home.logo) || null,
@@ -113,7 +148,7 @@ function normalizeFixture(fx) {
   };
 }
 
-async function fetchAndStoreFixtures(env, dateStr, { finalize = false } = {}) {
+async function fetchFixturesOnce(env, dateStr) {
   const response = await fetch(
       `https://v3.football.api-sports.io/fixtures?date=${dateStr}`,
       { headers: { 'x-apisports-key': env.API_FOOTBALL_KEY } },
@@ -137,17 +172,53 @@ async function fetchAndStoreFixtures(env, dateStr, { finalize = false } = {}) {
     throw new Error(`API-Football رجّع خطأ: ${JSON.stringify(apiErrors)}`);
   }
 
-  const allEvents = (body.response || []).map(normalizeFixture);
+  return (body.response || []).map(normalizeFixture);
+}
+
+async function fetchAndStoreFixtures(env, dateStr, { finalize = false, retryOnEmpty = false } = {}) {
+  let allEvents = await fetchFixturesOnce(env, dateStr);
+
+  // ملاحظة مهمة: لوحظ أن مزامنة الساعة تُرجع أحياناً 0 مباراة تماماً
+  // بينما إعادة تشغيل نفس المزامنة يدوياً بعد دقائق قليلة (لنفس اليوم)
+  // ترجع مئات المباريات فوراً. هذا سلوك معروف من API-Football نفسه عند
+  // بعض الطلبات (استجابة فارغة مؤقتة وليست خطأ HTTP ولا خطأ ضمن body.errors)
+  // وليس خللاً في هذا الكود. لذلك نعيد المحاولة مرة واحدة بعد مهلة قصيرة
+  // قبل تخزين نتيجة فارغة أثناء المزامنة التلقائية فقط.
+  if (allEvents.length === 0 && retryOnEmpty) {
+    await new Promise((resolve) => setTimeout(resolve, 8000));
+    try {
+      allEvents = await fetchFixturesOnce(env, dateStr);
+    } catch (_) {
+      // تجاهل فشل إعادة المحاولة — نكمل بالنتيجة الفارغة الأصلية ونطبّق
+      // حماية "عدم الكتابة فوق بيانات جيدة سابقة" أدناه.
+    }
+  }
 
   // الطلب بدون أي تصفية يرجّع مئات المباريات يومياً (كل درجات ودوريات
-  // العالم، حتى الدرجات الهاوية والشبابية المغمورة) — وهذه الدوريات
-  // غالباً لا تملك شعارات فرق أو دوري مسجّلة في قاعدة بيانات API-Football
-  // أصلاً، وهذا بالضبط سبب ظهور صور مكسورة في شاشة النتائج. نستبعدها
-  // بدل عرضها بصورة مكسورة، ونحتفظ فقط بالمباريات التي تملك بيانات صور
-  // كاملة (شعار الفريقين + شعار الدوري).
+  // العالم). نستبعد الآن حسب الدولة (راجع ALLOWED_COUNTRIES أعلاه) بدل
+  // اسم الدوري الحرفي — هذا يطابق سلوك تطبيقات النتائج المعروفة (تعرض كل
+  // دوريات الدول المهمة بكل درجاتها، وليس فقط أسماء دوريات بعينها) — ثم
+  // نحتفظ فقط بالمباريات التي تملك شعارات كاملة (فريقين + دوري) تفادياً
+  // لصور مكسورة.
   const events = allEvents.filter((event) =>
+    isAllowedCountry(event.strCountry) &&
     event.strHomeTeamBadge && event.strAwayTeamBadge && event.strLeagueBadge,
   );
+
+  // حماية إضافية: إن رجعت هذه المزامنة بصفر مباراة رغم إعادة المحاولة،
+  // ولدينا فعلاً بيانات جيدة مخزّنة سابقاً لنفس اليوم، لا نمسحها — على
+  // الأرجح هذه استجابة مؤقتة من API-Football وليست حقيقة "لا مباريات
+  // اليوم". تُحدَّث updatedAt فقط ليعكس وقت آخر محاولة.
+  if (events.length === 0 && retryOnEmpty) {
+    const existing = await getDoc(env, `matches_daily/${dateStr}`);
+    if (existing && Array.isArray(existing.events) && existing.events.length > 0) {
+      await setDoc(env, `matches_daily/${dateStr}`, {
+        ...existing,
+        updatedAt: new Date(),
+      });
+      return { count: existing.events.length, rawCount: existing.rawResultsCount ?? existing.events.length, keptExisting: true };
+    }
+  }
 
   await setDoc(env, `matches_daily/${dateStr}`, {
     events,
@@ -191,14 +262,23 @@ function dateKeyOffset(offsetDays) {
 // يومياً (3 أيام قادمة + يوم ماضٍ واحد جديد) ≈ 28 طلب/يوم، بدل 168 لو
 // جُلبت كل الأيام السبعة كل ساعة.
 async function runScheduledSync(env) {
-  await fetchAndStoreFixtures(env, dateKeyOffset(0));
+  try {
+    // retryOnEmpty: true — هذه هي المزامنة التلقائية غير المراقَبة (لا يوجد
+    // مستخدم ينتظر الرد فوراً كما في زر "مزامنة الآن")، فمن الأفضل تحمّل
+    // ثانية إضافية لإعادة محاولة عند استجابة فارغة بدل تخزين "0 مباراة"
+    // خاطئة قد تبقى ظاهرة للمستخدمين ساعة كاملة حتى المزامنة التالية.
+    await fetchAndStoreFixtures(env, dateKeyOffset(0), { retryOnEmpty: true });
+  } catch (_) {
+    // فشل مزامنة اليوم لا يجب أن يمنع محاولة مزامنة الأيام القادمة/الماضية
+    // أدناه (كانت سابقاً تتوقف بالكامل لأن هذا الاستدعاء لم يكن ضمن try/catch).
+  }
 
   const hour = new Date().getUTCHours();
   if (hour !== 0) return;
 
   for (const offset of [1, 2, 3]) {
     try {
-      await fetchAndStoreFixtures(env, dateKeyOffset(offset));
+      await fetchAndStoreFixtures(env, dateKeyOffset(offset), { retryOnEmpty: true });
     } catch (_) {
       // تجاهل فشل يوم قادم واحد، لا نوقف بقية المزامنة بسببه.
     }
@@ -209,7 +289,7 @@ async function runScheduledSync(env) {
     try {
       const existing = await getDoc(env, `matches_daily/${dateStr}`);
       if (existing && existing.finalized === true) continue;
-      await fetchAndStoreFixtures(env, dateStr, { finalize: true });
+      await fetchAndStoreFixtures(env, dateStr, { finalize: true, retryOnEmpty: true });
     } catch (_) {
       // نفس الشيء — يوم ماضٍ واحد يفشل لا يوقف البقية، وسيُعاد المحاولة
       // غداً تلقائياً لأنه لن يكون finalized بعد.
