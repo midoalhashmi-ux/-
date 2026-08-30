@@ -319,7 +319,7 @@ async function handleRefreshMatches(request, env) {
     for (const offset of [-3, -2, -1, 0, 1, 2, 3]) {
       const dateStr = dateKeyOffset(offset);
       try {
-        results[dateStr] = await fetchAndStoreFixtures(env, dateStr, { finalize: offset < 0 });
+        results[dateStr] = await fetchAndStoreFixtures(env, dateStr, { finalize: offset < 0, retryOnEmpty: true });
       } catch (error) {
         results[dateStr] = `error: ${String(error && error.message || error)}`;
       }
@@ -329,7 +329,7 @@ async function handleRefreshMatches(request, env) {
 
   const dateStr = body.date || todayDateKey();
   try {
-    const { count, rawCount } = await fetchAndStoreFixtures(env, dateStr);
+    const { count, rawCount } = await fetchAndStoreFixtures(env, dateStr, { retryOnEmpty: true });
     return json({ ok: true, count, rawCount, date: dateStr });
   } catch (error) {
     return json({ ok: false, message: String(error && error.message || error) }, 500);
