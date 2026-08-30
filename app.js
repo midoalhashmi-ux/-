@@ -426,6 +426,11 @@ async function loadPlayerSettings() {
     document.querySelector('#player-scheme').value = data.deepLinkScheme || 'sportsplayer';
     document.querySelector('#player-package').value = data.androidPackage || '';
     document.querySelector('#player-store-url').value = data.storeUrl || '';
+    document.querySelector('#player-min-version').value = data.minVersion || '';
+    document.querySelector('#player-update-url').value = data.updateUrl || '';
+    document.querySelector('#premium-enabled').checked = data.premiumEnabled === true;
+    document.querySelector('#premium-url').value = data.premiumUrl || '';
+    document.querySelector('#premium-button-text').value = data.premiumButtonText || '';
   } catch (_) {
     // إعدادات المشغل اختيارية إلى أن ينشر تطبيق المشغل في Google Play.
   }
@@ -859,11 +864,21 @@ document.querySelector('#player-form').addEventListener('submit', async (event) 
   const scheme = document.querySelector('#player-scheme').value.trim().replaceAll('://', '');
   const androidPackage = document.querySelector('#player-package').value.trim();
   const storeUrl = document.querySelector('#player-store-url').value.trim();
+  const minVersion = document.querySelector('#player-min-version').value.trim();
+  const updateUrl = document.querySelector('#player-update-url').value.trim();
+  const premiumEnabled = document.querySelector('#premium-enabled').checked;
+  const premiumUrl = document.querySelector('#premium-url').value.trim();
+  const premiumButtonText = document.querySelector('#premium-button-text').value.trim();
   try {
     await setDoc(doc(db, 'settings', 'player'), {
       deepLinkScheme: scheme,
       androidPackage,
       storeUrl,
+      minVersion,
+      updateUrl,
+      premiumEnabled,
+      premiumUrl,
+      premiumButtonText,
       updatedAt: serverTimestamp(),
     }, { merge: true });
     message.classList.remove('error');
