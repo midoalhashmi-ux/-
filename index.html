@@ -168,8 +168,12 @@
               <h2>حالة المزامنة</h2>
               <p id="matches-status-text" class="muted">جارٍ التحميل…</p>
             </div>
-            <button id="sync-matches-button" type="button">مزامنة الآن</button>
+            <div class="matches-sync-actions">
+              <button id="sync-matches-button" type="button">مزامنة الآن</button>
+              <button id="sync-window-button" type="button" class="secondary-button">إعادة مزامنة كل الأيام (-3 إلى +3)</button>
+            </div>
           </section>
+          <p class="muted matches-sync-hint">"مزامنة الآن" يحدّث اليوم فقط. "إعادة مزامنة كل الأيام" يحدّث الأيام السبعة كاملة فورًا (يفيد بعد أول نشر أو لو لاحظت أمس/غدًا فارغين) — يستهلك حصة API-Football أكبر، استخدمه عند الحاجة فقط.</p>
           <section id="matches-message" class="card message-card hidden" role="status"></section>
         </section>
 

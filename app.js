@@ -111,6 +111,7 @@ let currentParentId = null;
 
 // ---- المباريات (API-Football عبر Cloud Function) ----
 const syncMatchesButton = document.querySelector('#sync-matches-button');
+const syncWindowButton = document.querySelector('#sync-window-button');
 const matchesStatusText = document.querySelector('#matches-status-text');
 const matchesMessage = document.querySelector('#matches-message');
 
@@ -468,22 +469,25 @@ async function loadMatchesStatus() {
   }
 }
 
-syncMatchesButton?.addEventListener('click', async () => {
-  syncMatchesButton.disabled = true;
-  syncMatchesButton.textContent = 'جارٍ المزامنة…';
+// دالة مشتركة بين الزرين: "مزامنة الآن" (يوم اليوم فقط، body: {date})
+// و"إعادة مزامنة كل الأيام" (النافذة كاملة -3..+3، body: {syncWindow: true}).
+// نفس نقطة /refreshMatches بجسم مختلف — راجع cloudflare-worker/src/index.js.
+async function runMatchesSync(button, body, { busyText, idleText, successMessage }) {
+  button.disabled = true;
+  button.textContent = busyText;
   matchesMessage.classList.add('hidden');
   matchesMessage.classList.remove('error-card');
   try {
     const response = await fetch(`${WORKER_BASE_URL}/refreshMatches`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-admin-key': ADMIN_SYNC_SECRET },
-      body: JSON.stringify({ date: todayDateKey() }),
+      body: JSON.stringify(body),
     });
     const result = await response.json();
     if (!response.ok || result.ok === false) {
       throw new Error(result.message || `HTTP ${response.status}`);
     }
-    matchesMessage.textContent = `تمت المزامنة بنجاح — ${result.count ?? 0} مباراة.`;
+    matchesMessage.textContent = successMessage(result);
     matchesMessage.classList.remove('hidden');
     await loadMatchesStatus();
   } catch (error) {
@@ -493,10 +497,40 @@ syncMatchesButton?.addEventListener('click', async () => {
     matchesMessage.classList.remove('hidden');
     matchesMessage.classList.add('error-card');
   } finally {
-    syncMatchesButton.disabled = false;
-    syncMatchesButton.textContent = 'مزامنة الآن';
+    button.disabled = false;
+    button.textContent = idleText;
   }
-});
+}
+
+syncMatchesButton?.addEventListener('click', () => runMatchesSync(
+  syncMatchesButton,
+  { date: todayDateKey() },
+  {
+    busyText: 'جارٍ المزامنة…',
+    idleText: 'مزامنة الآن',
+    successMessage: (result) => `تمت المزامنة بنجاح — ${result.count ?? 0} مباراة.`,
+  },
+));
+
+syncWindowButton?.addEventListener('click', () => runMatchesSync(
+  syncWindowButton,
+  { syncWindow: true },
+  {
+    busyText: 'جارٍ مزامنة كل الأيام… (قد تستغرق وقتاً أطول)',
+    idleText: 'إعادة مزامنة كل الأيام (-3 إلى +3)',
+    successMessage: (result) => {
+      const entries = Object.entries(result.results || {});
+      const okDays = entries.filter(([, value]) => typeof value === 'object' && value !== null);
+      const totalMatches = okDays.reduce((sum, [, value]) => sum + (value.count ?? 0), 0);
+      const failedDays = entries.filter(([, value]) => typeof value === 'string');
+      let message = `تمت مزامنة نافذة الأيام (-3 إلى +3) — ${totalMatches} مباراة إجمالاً عبر ${okDays.length} يوم.`;
+      if (failedDays.length) {
+        message += ` تعذر جلب ${failedDays.length} يوم: ${failedDays.map(([date]) => date).join('، ')}.`;
+      }
+      return message;
+    },
+  },
+));
 
 // ==========================================================================
 // الرسائل الواردة (contactMessages) — تواصل معنا / إبلاغ عن رابط معطوب
