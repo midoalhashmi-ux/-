@@ -555,7 +555,8 @@ syncWindowButton?.addEventListener('click', () => runMatchesSync(
       const failedDays = entries.filter(([, value]) => typeof value === 'string');
       let message = `تمت مزامنة نافذة الأيام (-3 إلى +3) — ${totalMatches} مباراة إجمالاً عبر ${okDays.length} يوم.`;
       if (failedDays.length) {
-        message += ` تعذر جلب ${failedDays.length} يوم: ${failedDays.map(([date]) => date).join('، ')}.`;
+        const details = failedDays.map(([date, value]) => `${date} (${value})`).join('، ');
+        message += ` تعذر جلب ${failedDays.length} يوم: ${details}.`;
       }
       return message;
     },
