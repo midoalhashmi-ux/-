@@ -113,6 +113,7 @@ let currentParentId = null;
 const syncMatchesButton = document.querySelector('#sync-matches-button');
 const syncWindowButton = document.querySelector('#sync-window-button');
 const matchesStatusText = document.querySelector('#matches-status-text');
+const matchesDebugText = document.querySelector('#matches-debug-text');
 const matchesMessage = document.querySelector('#matches-message');
 
 // ---- الرسائل (contactMessages) ----
@@ -453,8 +454,36 @@ function formatTimestamp(value) {
   return value.toDate().toLocaleString('ar-EG', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
 }
 
+// يعرض بالضبط لماذا اختفت مباريات دوري معيّن من النتيجة النهائية، بدل
+// التخمين: rawResultsCount = كل ما رجع من API-Football قبل أي فلترة،
+// debugExcludedByLeague = عدد المباريات المستبعدة لأن اسم دوريها غير
+// موجود في القائمة المعتمدة بالووركر (cloudflare-worker/src/index.js —
+// ALLOWED_LEAGUE_NAMES)، وdebugExcludedLeagueSample أسماء فعلية من
+// المصدر لم تُطابق القائمة — لو ظهر هنا اسم دوري تتوقعه (مثلاً الدوري
+// المصري أو السعودي)، يعني اسم API-Football الفعلي مختلف عن المتوقع
+// بالقائمة ويحتاج تحديث هناك.
+function renderMatchesDebug(data) {
+  const excludedLeague = data.debugExcludedByLeague ?? 0;
+  const excludedBadge = data.debugExcludedByBadge ?? 0;
+  const sample = Array.isArray(data.debugExcludedLeagueSample) ? data.debugExcludedLeagueSample : [];
+  if (!excludedLeague && !excludedBadge) {
+    matchesDebugText.classList.add('hidden');
+    matchesDebugText.textContent = '';
+    return;
+  }
+  const parts = [];
+  if (typeof data.rawResultsCount === 'number') parts.push(`إجمالي من المصدر: ${data.rawResultsCount}`);
+  if (excludedLeague) parts.push(`مستبعدة (دوري غير مدعوم): ${excludedLeague}`);
+  if (excludedBadge) parts.push(`مستبعدة (شعار ناقص): ${excludedBadge}`);
+  let text = parts.join(' · ');
+  if (sample.length) text += ` — أمثلة أسماء دوريات مستبعدة: ${sample.join('، ')}`;
+  matchesDebugText.textContent = text;
+  matchesDebugText.classList.remove('hidden');
+}
+
 async function loadMatchesStatus() {
   matchesStatusText.textContent = 'جارٍ التحميل…';
+  matchesDebugText.classList.add('hidden');
   try {
     const snapshot = await getDoc(doc(db, 'matches_daily', todayDateKey()));
     const data = snapshot.data();
@@ -464,6 +493,7 @@ async function loadMatchesStatus() {
     }
     const count = Array.isArray(data.events) ? data.events.length : 0;
     matchesStatusText.textContent = `آخر تحديث: ${formatTimestamp(data.updatedAt)} · ${count} مباراة اليوم`;
+    renderMatchesDebug(data);
   } catch (_) {
     matchesStatusText.textContent = 'تعذر قراءة حالة المزامنة.';
   }
