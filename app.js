@@ -42,7 +42,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-
 const views = {
   loading: document.querySelector('#loading-view'),
   login: document.querySelector('#login-view'),
@@ -147,16 +146,6 @@ const unityGameId = document.querySelector('#unity-game-id');
 const unityBannerId = document.querySelector('#unity-banner-id');
 const unityInterstitialId = document.querySelector('#unity-interstitial-id');
 const unityRewardedId = document.querySelector('#unity-rewarded-id');
-
-// عناصر الرابط المخفي
-const hiddenLinkForm = document.querySelector('#hidden-link-form');
-const hiddenLinkInput = document.querySelector('#hidden-link-input');
-const hiddenParamsInput = document.querySelector('#hidden-params-input');
-const hiddenHeadersInput = document.querySelector('#hidden-headers-input');
-const hiddenLinkOutput = document.querySelector('#hidden-link-output');
-const hiddenLinkSaveButton = document.querySelector('#hidden-link-save-button');
-const hiddenLinkPlayButton = document.querySelector('#hidden-link-play-button');
-const hiddenLinkMessage = document.querySelector('#hidden-link-message');
 
 function showView(name) {
   Object.entries(views).forEach(([key, element]) => element.classList.toggle('hidden', key !== name));
@@ -285,7 +274,7 @@ function renderChannelsForCurrentCategory() {
   channelsEmpty.classList.add('hidden');
   channelsList.innerHTML = list.map((channel) => {
     const logo = channel.logoUrl ? `<img class="channel-logo" src="${escapeHtml(channel.logoUrl)}" alt="">` : '<div class="channel-logo category-image-placeholder">⚽</div>';
-    return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p><div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
+    return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p><div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><input type="text" class="source-input" data-api-input="${escapeHtml(channel.id)}" placeholder="أو رابط API لجلب الرابط تلقائيًا عند كل مشاهدة (اختياري)"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
   }).join('');
   channelsList.classList.remove('hidden');
   loadChannelSources(list);
@@ -384,6 +373,7 @@ async function loadChannels() {
 async function loadChannelSources(channels) {
   await Promise.all(channels.map(async (channel) => {
     const input = document.querySelector(`[data-source-input="${channel.id}"]`);
+    const apiInput = document.querySelector(`[data-api-input="${channel.id}"]`);
     const status = document.querySelector(`[data-source-status="${channel.id}"]`);
     if (!input) return;
     const isProtected = channel.protected !== false;
@@ -394,7 +384,10 @@ async function loadChannelSources(channels) {
     try {
       const snapshot = await getDoc(doc(db, 'privateStreams', channel.id));
       const data = snapshot.data();
-      if (data?.url) {
+      if (data?.apiUrl && apiInput) {
+        apiInput.value = data.apiUrl;
+        if (status) status.textContent = 'مربوط برابط API — يُجلَب حيًا عند كل مشاهدة';
+      } else if (data?.url) {
         input.value = data.url;
         if (status) status.textContent = 'محفوظ ومحمي برابط مؤقت';
       }
@@ -406,22 +399,27 @@ async function loadChannelSources(channels) {
 
 async function saveChannelSource(channelId) {
   const input = document.querySelector(`[data-source-input="${channelId}"]`);
+  const apiInput = document.querySelector(`[data-api-input="${channelId}"]`);
   const status = document.querySelector(`[data-source-status="${channelId}"]`);
   const button = document.querySelector(`[data-save-source="${channelId}"]`);
   const protectedToggle = document.querySelector(`[data-protected-toggle="${channelId}"]`);
   if (!input) return;
   const url = input.value.trim();
-  if (!url) { if (status) { status.textContent = 'الصق رابط m3u8 أولاً'; status.classList.add('error'); } return; }
+  const apiUrl = apiInput ? apiInput.value.trim() : '';
+  // لازم رابط m3u8 يدوي أو رابط API — واحد منهم على الأقل.
+  if (!url && !apiUrl) { if (status) { status.textContent = 'الصق رابط m3u8 أو رابط API أولاً'; status.classList.add('error'); } return; }
   const isProtected = protectedToggle ? protectedToggle.checked : true;
   if (button) { button.disabled = true; button.textContent = 'جارٍ الحفظ…'; }
   if (status) status.classList.remove('error');
   try {
     if (isProtected) {
-      await setDoc(doc(db, 'privateStreams', channelId), { url, updatedAt: serverTimestamp() }, { merge: true });
+      // رابط API له الأولوية عند التشغيل (يُجلَب حيًا في الـ Worker)، ورابط
+      // m3u8 اليدوي يبقى كنسخة احتياطية إذا فشل الجلب الحي أو ما فيه API.
+      await setDoc(doc(db, 'privateStreams', channelId), { url: url || null, apiUrl: apiUrl || null, updatedAt: serverTimestamp() }, { merge: true });
       await updateDoc(doc(db, 'channels', channelId), { protected: true, directUrl: null });
-      if (status) status.textContent = 'تم الحفظ ✓ محمي برابط مؤقت';
+      if (status) status.textContent = apiUrl ? 'تم الحفظ ✓ سيُجلب حيًا عند كل مشاهدة' : 'تم الحفظ ✓ محمي برابط مؤقت';
     } else {
-      await updateDoc(doc(db, 'channels', channelId), { protected: false, directUrl: url });
+      await updateDoc(doc(db, 'channels', channelId), { protected: false, directUrl: url || apiUrl });
       if (status) status.textContent = 'تم الحفظ ✓ بدون حماية — تشغيل فوري بدون تأخير';
     }
   } catch (_) {
@@ -741,139 +739,6 @@ adsForm?.addEventListener('submit', async (event) => {
   }
 });
 
-// ==========================================================================
-// إضافة ميزة الرابط المخفي (Hidden Link)
-// ==========================================================================
-// سنضيف هنا الدوال والعناصر الخاصة بحفظ رابط مخفي (رابط أصلي + معاملات)
-// وعرضه وتشغيله.
-// ==========================================================================
-
-// تحميل آخر رابط مخفي محفوظ من Firestore (مجموعة hiddenLinks)
-async function loadHiddenLink() {
-  if (!hiddenLinkOutput) return;
-  try {
-    const q = query(collection(db, 'hiddenLinks'), orderBy('createdAt', 'desc'), limit(1));
-    const snapshot = await getDocs(q);
-    if (!snapshot.empty) {
-      const data = snapshot.docs[0].data();
-      hiddenLinkOutput.value = data.hiddenUrl || '';
-      hiddenLinkInput.value = data.originalUrl || '';
-      hiddenParamsInput.value = data.parameters || '';
-      if (hiddenHeadersInput) {
-        hiddenHeadersInput.value = data.headers ? JSON.stringify(data.headers, null, 2) : '';
-      }
-      if (hiddenLinkMessage) { hiddenLinkMessage.textContent = 'آخر رابط مخفي محفوظ:'; hiddenLinkMessage.classList.remove('error'); }
-    } else {
-      if (hiddenLinkMessage) hiddenLinkMessage.textContent = 'لا يوجد رابط مخفي محفوظ بعد.';
-    }
-  } catch (_) {
-    if (hiddenLinkMessage) { hiddenLinkMessage.textContent = 'تعذر تحميل الرابط المخفي من قاعدة البيانات.'; hiddenLinkMessage.classList.add('error'); }
-  }
-}
-
-// تحويل نص JSON إلى كائن، مع التحقق من الصحة
-function parseHeadersInput() {
-  if (!hiddenHeadersInput || !hiddenHeadersInput.value.trim()) return null;
-  try {
-    const parsed = JSON.parse(hiddenHeadersInput.value.trim());
-    if (typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-    throw new Error('Invalid headers object');
-  } catch (_) {
-    if (hiddenLinkMessage) { hiddenLinkMessage.textContent = 'صيغة الهيدرات غير صحيحة. يجب أن تكون JSON صحيح.'; hiddenLinkMessage.classList.add('error'); }
-    return null;
-  }
-}
-
-// حفظ الرابط المخفي في Firestore
-async function saveHiddenLink(event) {
-  event.preventDefault();
-  if (!hiddenLinkInput || !hiddenParamsInput || !hiddenLinkSaveButton) return;
-  const originalUrl = hiddenLinkInput.value.trim();
-  const parameters = hiddenParamsInput.value.trim();
-  if (!originalUrl) {
-    if (hiddenLinkMessage) { hiddenLinkMessage.textContent = 'الرجاء إدخال الرابط الأصلي.'; hiddenLinkMessage.classList.add('error'); }
-    return;
-  }
-  const headers = parseHeadersInput();
-  if (headers === null) return; // توقف إذا كانت الهيدرات غير صالحة
-
-  const hiddenUrl = parameters ? `${originalUrl}?${parameters}` : originalUrl;
-  hiddenLinkSaveButton.disabled = true;
-  hiddenLinkSaveButton.textContent = 'جارٍ الحفظ…';
-  try {
-    await addDoc(collection(db, 'hiddenLinks'), {
-      originalUrl,
-      parameters,
-      hiddenUrl,
-      headers,
-      createdAt: serverTimestamp(),
-    });
-    if (hiddenLinkOutput) {
-      hiddenLinkOutput.value = hiddenUrl;
-      // إجبار التحديث البصري
-      hiddenLinkOutput.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    // إظهار الرابط في رسالة النجاح أيضًا كنسخة احتياطية
-    if (hiddenLinkMessage) {
-      hiddenLinkMessage.textContent = `تم حفظ الرابط المخفي بنجاح ✓ الرابط: ${hiddenUrl}`;
-      hiddenLinkMessage.classList.remove('error');
-    }
-  } catch (_) {
-    if (hiddenLinkMessage) { hiddenLinkMessage.textContent = 'تعذر حفظ الرابط المخفي. تحقق من قواعد Firestore.'; hiddenLinkMessage.classList.add('error'); }
-  } finally {
-    hiddenLinkSaveButton.disabled = false;
-    hiddenLinkSaveButton.textContent = 'حفظ الرابط المخفي';
-  }
-}
-
-// تشغيل الرابط المخفي (يفتح في نافذة جديدة)
-function playHiddenLink() {
-  if (!hiddenLinkOutput) return;
-  const hiddenUrl = hiddenLinkOutput.value.trim();
-  if (!hiddenUrl) {
-    if (hiddenLinkMessage) { hiddenLinkMessage.textContent = 'لا يوجد رابط للتشغيل.'; hiddenLinkMessage.classList.add('error'); }
-    return;
-  }
-  window.open(hiddenUrl, '_blank');
-}
-
-// تعبئة الحقول بمثال جاهز (الرابط الذي أرسلته)
-function fillExample() {
-  if (hiddenLinkInput) hiddenLinkInput.value = 'http://h58.xelorino.buzz/live/918454578001/index.m3u8';
-  if (hiddenParamsInput) hiddenParamsInput.value = 't=ScGEzq_hRW4KJejGUOCFNw&e=1788398260';
-  if (hiddenHeadersInput) {
-    hiddenHeadersInput.value = JSON.stringify({
-      "Referer": "https://x.com/",
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
-    }, null, 2);
-  }
-  // تحديث حقل الناتج بشكل فوري
-  if (hiddenLinkOutput) {
-    const combined = hiddenParamsInput.value ? `${hiddenLinkInput.value}?${hiddenParamsInput.value}` : hiddenLinkInput.value;
-    hiddenLinkOutput.value = combined;
-    hiddenLinkOutput.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-  if (hiddenLinkMessage) {
-    hiddenLinkMessage.textContent = 'تم تعبئة المثال. اضغط حفظ لتخزينه.';
-    hiddenLinkMessage.classList.remove('error');
-  }
-}
-
-// ربط الأحداث
-if (hiddenLinkForm) {
-  hiddenLinkForm.addEventListener('submit', saveHiddenLink);
-}
-if (hiddenLinkPlayButton) {
-  hiddenLinkPlayButton.addEventListener('click', playHiddenLink);
-}
-const fillExampleButton = document.querySelector('#fill-example-button');
-if (fillExampleButton) {
-  fillExampleButton.addEventListener('click', fillExample);
-}
-
-// ==========================================================================
-// تهيئة التطبيق عند تسجيل الدخول
-// ==========================================================================
 onAuthStateChanged(auth, (user) => {
   if (user) {
     document.querySelector('#owner-email').textContent = user.email || 'المالك';
@@ -885,8 +750,6 @@ onAuthStateChanged(auth, (user) => {
     loadMessages();
     loadLegalSettings();
     loadAdsSettings();
-    // استدعاء تحميل الرابط المخفي
-    loadHiddenLink();
     return;
   }
   showView('login');
