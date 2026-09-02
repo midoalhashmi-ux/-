@@ -158,7 +158,7 @@
         <section class="card category-form-card hidden-link-card">
           <div>
             <h2>الرابط المخفي</h2>
-            <p class="muted">احفظ رابط فيديو مع معاملات إضافية، وسيتم توليد رابط مخفي يمكن استخدامه.</p>
+            <p class="muted">احفظ رابط فيديو مع معاملات وهيدرات، وسيتم توليد رابط مخفي يمكن استخدامه لاحقاً.</p>
           </div>
           <form id="hidden-link-form" class="hidden-link-form">
             <div>
@@ -167,7 +167,11 @@
             </div>
             <div>
               <label for="hidden-params-input">المعاملات (اختياري)</label>
-              <input id="hidden-params-input" type="text" placeholder="token=e123" />
+              <input id="hidden-params-input" type="text" placeholder="token=e123&expire=1234567890" />
+            </div>
+            <div>
+              <label for="hidden-headers-input">الهيدرات (Headers) - JSON اختياري</label>
+              <textarea id="hidden-headers-input" rows="4" placeholder='{"Referer":"https://x.com/","User-Agent":"Mozilla/5.0 ..."}'></textarea>
             </div>
             <div>
               <label for="hidden-link-output">الرابط المخفي الناتج</label>
