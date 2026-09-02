@@ -153,39 +153,6 @@
           <section id="channels-empty" class="card message-card hidden"><h2>لا توجد قنوات بعد</h2><p>أضف أول قناة من زر «+ إضافة» أعلاه.</p></section>
           <section id="channels-list" class="channels-list hidden"></section>
         </section>
-
-        <!-- ==== بطاقة الرابط المخفي (جديدة) ==== -->
-        <section class="card category-form-card hidden-link-card">
-          <div>
-            <h2>الرابط المخفي</h2>
-            <p class="muted">احفظ رابط فيديو مع معاملات وهيدرات، وسيتم توليد رابط مخفي يمكن استخدامه لاحقاً.</p>
-          </div>
-          <form id="hidden-link-form" class="hidden-link-form">
-            <div>
-              <label for="hidden-link-input">الرابط الأصلي</label>
-              <input id="hidden-link-input" type="url" placeholder="https://example.com/video.m3u8" required />
-            </div>
-            <div>
-              <label for="hidden-params-input">المعاملات (اختياري)</label>
-              <input id="hidden-params-input" type="text" placeholder="token=e123&expire=1234567890" />
-            </div>
-            <div>
-              <label for="hidden-headers-input">الهيدرات (Headers) - JSON اختياري</label>
-              <textarea id="hidden-headers-input" rows="4" placeholder='{"Referer":"https://x.com/","User-Agent":"Mozilla/5.0 ..."}'></textarea>
-            </div>
-            <div>
-              <label for="hidden-link-output">الرابط المخفي الناتج</label>
-              <input id="hidden-link-output" type="text" readonly />
-            </div>
-            <p id="hidden-link-message" class="form-message"></p>
-            <div class="form-card-actions">
-              <button id="hidden-link-save-button" type="submit">حفظ الرابط المخفي</button>
-              <button id="hidden-link-play-button" type="button" class="secondary-button">تشغيل الرابط</button>
-            </div>
-          </form>
-        </section>
-        <!-- ==== نهاية بطاقة الرابط المخفي ==== -->
-
         </section>
 
         <section id="matches-panel" class="admin-panel hidden">
