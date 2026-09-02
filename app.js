@@ -21,14 +21,9 @@ import {
   updateDoc,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
-// عنوان Cloudflare Worker (بديل Firebase Cloud Functions — بدون خطة Blaze
-// ولا حساب فوترة سعودي عبر CNTXT). استبدله بالعنوان الحقيقي بعد
-// "wrangler deploy" — راجع cloudflare-worker/README.md.
 const WORKER_BASE_URL = 'https://binsheikh-api.binsheikh.workers.dev';
-// نفس القيمة اللي ضبطتها بأمر: wrangler secret put ADMIN_SYNC_SECRET
 const ADMIN_SYNC_SECRET = 'Sh3ikh2026Sports!Admin#Sync99';
 
-// إعدادات تطبيق الويب من مشروع Firebase نفسه. لا تضع هنا كلمات مرور المستخدمين.
 const firebaseConfig = {
   apiKey: 'AIzaSyAhbhgXXfR7A9AGsDk0c8GCp0bvvhyzw2g',
   authDomain: 'sports-stream-app-36a7a.firebaseapp.com',
@@ -42,6 +37,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
 const views = {
   loading: document.querySelector('#loading-view'),
   login: document.querySelector('#login-view'),
@@ -69,7 +65,6 @@ const backToRoot = document.querySelector('#back-to-root');
 const retryCategories = document.querySelector('#retry-categories');
 const navButtons = document.querySelectorAll('[data-panel]');
 
-// ---- زر "+ إضافة" الموحّد وبطاقاته ----
 const addMenuToggle = document.querySelector('#add-menu-toggle');
 const addMenu = document.querySelector('#add-menu');
 const addMenuChannelButton = addMenu.querySelector('[data-add-type="channel"]');
@@ -109,14 +104,12 @@ let currentChannels = [];
 let currentCategories = [];
 let currentParentId = null;
 
-// ---- المباريات (API-Football عبر Cloud Function) ----
 const syncMatchesButton = document.querySelector('#sync-matches-button');
 const syncWindowButton = document.querySelector('#sync-window-button');
 const matchesStatusText = document.querySelector('#matches-status-text');
 const matchesDebugText = document.querySelector('#matches-debug-text');
 const matchesMessage = document.querySelector('#matches-message');
 
-// ---- الرسائل (contactMessages) ----
 const messagesLoading = document.querySelector('#messages-loading');
 const messagesEmpty = document.querySelector('#messages-empty');
 const messagesList = document.querySelector('#messages-list');
@@ -124,13 +117,11 @@ const messagesCount = document.querySelector('#messages-count');
 const messagesBadge = document.querySelector('#messages-badge');
 let currentMessages = [];
 
-// ---- الشروط والأحكام / سياسة الخصوصية ----
 const legalForm = document.querySelector('#legal-form');
 const legalTerms = document.querySelector('#legal-terms');
 const legalPrivacy = document.querySelector('#legal-privacy');
 const legalMessage = document.querySelector('#legal-message');
 
-// ---- الإعلانات (settings/ads) ----
 const adsForm = document.querySelector('#ads-form');
 const adsEnabled = document.querySelector('#ads-enabled');
 const adsMessage = document.querySelector('#ads-message');
@@ -146,6 +137,16 @@ const unityGameId = document.querySelector('#unity-game-id');
 const unityBannerId = document.querySelector('#unity-banner-id');
 const unityInterstitialId = document.querySelector('#unity-interstitial-id');
 const unityRewardedId = document.querySelector('#unity-rewarded-id');
+
+// عناصر الرابط المخفي
+const hiddenLinkForm = document.querySelector('#hidden-link-form');
+const hiddenLinkInput = document.querySelector('#hidden-link-input');
+const hiddenParamsInput = document.querySelector('#hidden-params-input');
+const hiddenHeadersInput = document.querySelector('#hidden-headers-input');
+const hiddenLinkOutput = document.querySelector('#hidden-link-output');
+const hiddenLinkSaveButton = document.querySelector('#hidden-link-save-button');
+const hiddenLinkPlayButton = document.querySelector('#hidden-link-play-button');
+const hiddenLinkMessage = document.querySelector('#hidden-link-message');
 
 function showView(name) {
   Object.entries(views).forEach(([key, element]) => element.classList.toggle('hidden', key !== name));
@@ -367,9 +368,6 @@ async function loadChannels() {
   }
 }
 
-// مصادر البث الحقيقية (روابط m3u8) محفوظة في مجموعة منفصلة privateStreams
-// لا يقرأها تطبيق المحتوى أبداً — فقط لوحة التحكم (بعد تسجيل الدخول) والـ Cloud Function.
-// القنوات غير المحمية تُحفظ مباشرة داخل channels.directUrl (قراءة عامة، بدون تأخير التوكن).
 async function loadChannelSources(channels) {
   await Promise.all(channels.map(async (channel) => {
     const input = document.querySelector(`[data-source-input="${channel.id}"]`);
@@ -438,12 +436,6 @@ async function loadPlayerSettings() {
   }
 }
 
-// ==========================================================================
-// مباريات اليوم — حالة المزامنة وزر "مزامنة الآن"
-// ==========================================================================
-// تُقرأ فقط للعرض هنا (نفس مستند matches_daily/{today} الذي يقرأه التطبيق).
-// الكتابة الفعلية تتم حصراً داخل Cloud Function refreshMatches (Admin SDK)،
-// وليس من هذا الملف — راجع firestore.rules (allow write: if false;).
 function todayDateKey() {
   const now = new Date();
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
@@ -454,14 +446,6 @@ function formatTimestamp(value) {
   return value.toDate().toLocaleString('ar-EG', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
 }
 
-// يعرض بالضبط لماذا اختفت مباريات دوري معيّن من النتيجة النهائية، بدل
-// التخمين: rawResultsCount = كل ما رجع من API-Football قبل أي فلترة،
-// debugExcludedByLeague = عدد المباريات المستبعدة لأن اسم دوريها غير
-// موجود في القائمة المعتمدة بالووركر (cloudflare-worker/src/index.js —
-// ALLOWED_LEAGUE_NAMES)، وdebugExcludedLeagueSample أسماء فعلية من
-// المصدر لم تُطابق القائمة — لو ظهر هنا اسم دوري تتوقعه (مثلاً الدوري
-// المصري أو السعودي)، يعني اسم API-Football الفعلي مختلف عن المتوقع
-// بالقائمة ويحتاج تحديث هناك.
 function renderMatchesDebug(data) {
   const excludedLeague = data.debugExcludedByLeague ?? 0;
   const excludedBadge = data.debugExcludedByBadge ?? 0;
@@ -499,9 +483,6 @@ async function loadMatchesStatus() {
   }
 }
 
-// دالة مشتركة بين الزرين: "مزامنة الآن" (يوم اليوم فقط، body: {date})
-// و"إعادة مزامنة كل الأيام" (النافذة كاملة -3..+3، body: {syncWindow: true}).
-// نفس نقطة /refreshMatches بجسم مختلف — راجع cloudflare-worker/src/index.js.
 async function runMatchesSync(button, body, { busyText, idleText, successMessage }) {
   button.disabled = true;
   button.textContent = busyText;
@@ -563,9 +544,6 @@ syncWindowButton?.addEventListener('click', () => runMatchesSync(
   },
 ));
 
-// ==========================================================================
-// الرسائل الواردة (contactMessages) — تواصل معنا / إبلاغ عن رابط معطوب
-// ==========================================================================
 const MESSAGE_TYPE_LABELS = { general: 'تواصل معنا', broken_link: 'رابط معطوب' };
 
 async function loadMessages() {
@@ -638,9 +616,6 @@ messagesList?.addEventListener('click', async (event) => {
   }
 });
 
-// ==========================================================================
-// الشروط والأحكام وسياسة الخصوصية (settings/legal)
-// ==========================================================================
 async function loadLegalSettings() {
   try {
     const snapshot = await getDoc(doc(db, 'settings', 'legal'));
@@ -670,9 +645,6 @@ legalForm?.addEventListener('submit', async (event) => {
   }
 });
 
-// ==========================================================================
-// الإعلانات — أكواد الشبكات ومفتاح التشغيل/الإيقاف (settings/ads)
-// ==========================================================================
 async function loadAdsSettings() {
   try {
     const snapshot = await getDoc(doc(db, 'settings', 'ads'));
@@ -730,6 +702,94 @@ adsForm?.addEventListener('submit', async (event) => {
   }
 });
 
+// ==================== دوال الرابط المخفي مع الهيدرات ====================
+async function loadHiddenLink() {
+  if (!hiddenLinkOutput) return;
+  try {
+    const q = query(collection(db, 'hiddenLinks'), orderBy('createdAt', 'desc'), limit(1));
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      const data = snapshot.docs[0].data();
+      hiddenLinkOutput.value = data.hiddenUrl || '';
+      hiddenLinkInput.value = data.originalUrl || '';
+      hiddenParamsInput.value = data.parameters || '';
+      if (hiddenHeadersInput) {
+        hiddenHeadersInput.value = data.headers ? JSON.stringify(data.headers, null, 2) : '';
+      }
+      if (hiddenLinkMessage) { hiddenLinkMessage.textContent = 'آخر رابط مخفي محفوظ:'; hiddenLinkMessage.classList.remove('error'); }
+    } else {
+      if (hiddenLinkMessage) hiddenLinkMessage.textContent = 'لا يوجد رابط مخفي محفوظ بعد.';
+    }
+  } catch (_) {
+    if (hiddenLinkMessage) { hiddenLinkMessage.textContent = 'تعذر تحميل الرابط المخفي من قاعدة البيانات.'; hiddenLinkMessage.classList.add('error'); }
+  }
+}
+
+function parseHeadersInput() {
+  if (!hiddenHeadersInput || !hiddenHeadersInput.value.trim()) return null;
+  try {
+    const parsed = JSON.parse(hiddenHeadersInput.value.trim());
+    if (typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    throw new Error('Invalid headers object');
+  } catch (_) {
+    if (hiddenLinkMessage) { hiddenLinkMessage.textContent = 'صيغة الهيدرات غير صحيحة. يجب أن تكون JSON صحيح.'; hiddenLinkMessage.classList.add('error'); }
+    return null;
+  }
+}
+
+async function saveHiddenLink(event) {
+  event.preventDefault();
+  if (!hiddenLinkInput || !hiddenParamsInput || !hiddenLinkSaveButton) return;
+  const originalUrl = hiddenLinkInput.value.trim();
+  const parameters = hiddenParamsInput.value.trim();
+  if (!originalUrl) {
+    if (hiddenLinkMessage) { hiddenLinkMessage.textContent = 'الرجاء إدخال الرابط الأصلي.'; hiddenLinkMessage.classList.add('error'); }
+    return;
+  }
+  const headers = parseHeadersInput();
+  if (headers === null) return; // توقف إذا كانت الهيدرات غير صالحة
+
+  const hiddenUrl = parameters ? `${originalUrl}?${parameters}` : originalUrl;
+  hiddenLinkSaveButton.disabled = true;
+  hiddenLinkSaveButton.textContent = 'جارٍ الحفظ…';
+  try {
+    await addDoc(collection(db, 'hiddenLinks'), {
+      originalUrl,
+      parameters,
+      hiddenUrl,
+      headers,
+      createdAt: serverTimestamp(),
+    });
+    if (hiddenLinkOutput) hiddenLinkOutput.value = hiddenUrl;
+    if (hiddenLinkMessage) { hiddenLinkMessage.textContent = 'تم حفظ الرابط المخفي بنجاح ✓'; hiddenLinkMessage.classList.remove('error'); }
+  } catch (_) {
+    if (hiddenLinkMessage) { hiddenLinkMessage.textContent = 'تعذر حفظ الرابط المخفي. تحقق من قواعد Firestore.'; hiddenLinkMessage.classList.add('error'); }
+  } finally {
+    hiddenLinkSaveButton.disabled = false;
+    hiddenLinkSaveButton.textContent = 'حفظ الرابط المخفي';
+  }
+}
+
+function playHiddenLink() {
+  if (!hiddenLinkOutput) return;
+  const hiddenUrl = hiddenLinkOutput.value.trim();
+  if (!hiddenUrl) {
+    if (hiddenLinkMessage) { hiddenLinkMessage.textContent = 'لا يوجد رابط للتشغيل.'; hiddenLinkMessage.classList.add('error'); }
+    return;
+  }
+  // ملاحظة: الهيدرات لا يمكن تمريرها تلقائياً في المتصفح،
+  // لكن يمكن نسخها من حقل الهيدرات واستخدامها في تطبيق يدعمها.
+  window.open(hiddenUrl, '_blank');
+}
+
+if (hiddenLinkForm) {
+  hiddenLinkForm.addEventListener('submit', saveHiddenLink);
+}
+if (hiddenLinkPlayButton) {
+  hiddenLinkPlayButton.addEventListener('click', playHiddenLink);
+}
+// ==================== نهاية دوال الرابط المخفي ====================
+
 onAuthStateChanged(auth, (user) => {
   if (user) {
     document.querySelector('#owner-email').textContent = user.email || 'المالك';
@@ -741,6 +801,7 @@ onAuthStateChanged(auth, (user) => {
     loadMessages();
     loadLegalSettings();
     loadAdsSettings();
+    loadHiddenLink();
     return;
   }
   showView('login');
@@ -799,7 +860,6 @@ backToRoot.addEventListener('click', () => {
   renderCurrentCategoryView();
 });
 
-// ---- زر "+ إضافة" الموحّد: فتح/إغلاق القائمة واختيار نوع العنصر ----
 addMenuToggle.addEventListener('click', (event) => {
   event.stopPropagation();
   const willOpen = addMenu.classList.contains('hidden');
