@@ -211,3 +211,5 @@ textarea:focus { border-color: #38bdf8; }
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+.source-help{display:block;margin-top:6px;opacity:.75;font-size:.82rem;line-height:1.5}
