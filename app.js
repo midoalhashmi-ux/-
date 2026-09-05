@@ -318,7 +318,10 @@ function renderChannelsForCurrentCategory() {
     const logo = channel.logoUrl ? `<img class="channel-logo" src="${escapeHtml(channel.logoUrl)}" alt="">` : '<div class="channel-logo category-image-placeholder">⚽</div>';
     const checkbox = channelSelectMode ? `<label class="select-checkbox-wrap"><input type="checkbox" class="select-checkbox" data-select-channel="${escapeHtml(channel.id)}" ${selectedChannelIds.has(channel.id) ? 'checked' : ''}></label>` : '';
     const orderControl = `<label class="order-control">الترتيب <input type="number" class="order-input" data-reorder-channel="${escapeHtml(channel.id)}" min="1" max="${list.length}" value="${index + 1}"></label>`;
-    return `<article class="card channel-item">${checkbox}${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p>${orderControl}<div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
+    const sourceType = channel.streamType === 'web' ? 'web' : 'hls';
+    const sourcePlaceholder = sourceType === 'web' ? 'https://example.com/live' : 'https://example.com/live/playlist.m3u8';
+    const protectionControl = sourceType === 'web' ? '' : `<label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label>`;
+    return `<article class="card channel-item">${checkbox}${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p>${orderControl}<div class="channel-source"><label>نوع المصدر <select class="source-type-select" data-source-type="${escapeHtml(channel.id)}"><option value="hls" ${sourceType === 'hls' ? 'selected' : ''}>بث مباشر HLS / m3u8</option><option value="web" ${sourceType === 'web' ? 'selected' : ''}>صفحة ويب</option></select></label>${protectionControl}<input type="url" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="${sourcePlaceholder}"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
   }).join('');
   channelsList.classList.remove('hidden');
   loadChannelSources(list);
@@ -473,8 +476,16 @@ async function loadChannels() {
 async function loadChannelSources(channels) {
   await Promise.all(channels.map(async (channel) => {
     const input = document.querySelector(`[data-source-input="${channel.id}"]`);
+    const typeSelect = document.querySelector(`[data-source-type="${channel.id}"]`);
     const status = document.querySelector(`[data-source-status="${channel.id}"]`);
     if (!input) return;
+    const streamType = channel.streamType === 'web' ? 'web' : 'hls';
+    if (typeSelect) typeSelect.value = streamType;
+    if (streamType === 'web' && channel.sourceUrl) {
+      input.value = channel.sourceUrl;
+      if (status) status.textContent = 'محفوظ كرابط صفحة ويب';
+      return;
+    }
     const isProtected = channel.protected !== false;
     if (!isProtected) {
       if (channel.directUrl) { input.value = channel.directUrl; if (status) status.textContent = 'محفوظ بدون حماية (بدون تأخير)'; }
@@ -498,21 +509,31 @@ async function saveChannelSource(channelId) {
   const status = document.querySelector(`[data-source-status="${channelId}"]`);
   const button = document.querySelector(`[data-save-source="${channelId}"]`);
   const protectedToggle = document.querySelector(`[data-protected-toggle="${channelId}"]`);
+  const typeSelect = document.querySelector(`[data-source-type="${channelId}"]`);
   if (!input) return;
   const url = input.value.trim();
-  if (!url) { if (status) { status.textContent = 'الصق رابط m3u8 أولاً'; status.classList.add('error'); } return; }
-  const isProtected = protectedToggle ? protectedToggle.checked : true;
+  const streamType = typeSelect?.value === 'web' ? 'web' : 'hls';
+  if (!url) { if (status) { status.textContent = 'أدخل رابط المصدر أولاً'; status.classList.add('error'); } return; }
+  if (!/^https?:\/\//i.test(url)) { if (status) { status.textContent = 'الرابط يجب أن يبدأ بـ http:// أو https://'; status.classList.add('error'); } return; }
   if (button) { button.disabled = true; button.textContent = 'جارٍ الحفظ…'; }
   if (status) status.classList.remove('error');
   try {
-    if (isProtected) {
-      await setDoc(doc(db, 'privateStreams', channelId), { url, updatedAt: serverTimestamp() }, { merge: true });
-      await updateDoc(doc(db, 'channels', channelId), { protected: true, directUrl: null });
-      if (status) status.textContent = 'تم الحفظ ✓ محمي برابط مؤقت';
+    if (streamType === 'web') {
+      await updateDoc(doc(db, 'channels', channelId), { streamType: 'web', sourceUrl: url, protected: false, directUrl: null });
+      if (status) status.textContent = 'تم الحفظ ✓ صفحة ويب';
     } else {
-      await updateDoc(doc(db, 'channels', channelId), { protected: false, directUrl: url });
-      if (status) status.textContent = 'تم الحفظ ✓ بدون حماية — تشغيل فوري بدون تأخير';
+      const isProtected = protectedToggle ? protectedToggle.checked : true;
+      if (isProtected) {
+        await setDoc(doc(db, 'privateStreams', channelId), { url, updatedAt: serverTimestamp() }, { merge: true });
+        await updateDoc(doc(db, 'channels', channelId), { streamType: 'hls', sourceUrl: null, protected: true, directUrl: null });
+        if (status) status.textContent = 'تم الحفظ ✓ HLS محمي برابط مؤقت';
+      } else {
+        await updateDoc(doc(db, 'channels', channelId), { streamType: 'hls', sourceUrl: null, protected: false, directUrl: url });
+        if (status) status.textContent = 'تم الحفظ ✓ HLS بدون حماية';
+      }
     }
+    const channel = currentChannels.find((item) => item.id === channelId);
+    if (channel) Object.assign(channel, streamType === 'web' ? { streamType: 'web', sourceUrl: url, protected: false, directUrl: null } : { streamType: 'hls' });
   } catch (_) {
     if (status) { status.textContent = 'تعذر الحفظ. تحقق من قواعد Firestore.'; status.classList.add('error'); }
   } finally {
@@ -1179,6 +1200,8 @@ bulkForm.addEventListener('submit', async (event) => {
           status: ch.status || 'live',
           logoUrl: ch.logoUrl || null,
           playerChannelKey: ch.playerChannelKey || null,
+          streamType: ch.streamType === 'web' ? 'web' : 'hls',
+          sourceUrl: ch.streamType === 'web' ? (ch.sourceUrl || ch.streamUrl || null) : null,
           viewCount: 0,
           order: baseOrder + channelOrderCounter,
           createdAt: serverTimestamp(),
@@ -1312,6 +1335,13 @@ channelForm.addEventListener('submit', async (event) => {
 });
 channelCloseButton.addEventListener('click', () => { resetChannelForm(); closeAllFormCards(); });
 channelsList.addEventListener('change', (event) => {
+  const typeSelect = event.target.closest('[data-source-type]');
+  if (typeSelect) {
+    const id = typeSelect.dataset.sourceType;
+    const input = document.querySelector(`[data-source-input="${id}"]`);
+    if (input) input.placeholder = typeSelect.value === 'web' ? 'https://example.com/live' : 'https://example.com/live/playlist.m3u8';
+    return;
+  }
   const input = event.target.closest('[data-reorder-channel]');
   if (!input) return;
   const newPosition = parseInt(input.value, 10);

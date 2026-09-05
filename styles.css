@@ -99,6 +99,9 @@ button:disabled { opacity: .65; cursor: wait; }
 .ads-group-heading h3 { margin: 0; color: #7dd3fc; font-size: 1rem; }
 .channel-source .source-input { flex: 1; min-width: 220px; padding: 8px 10px; border-radius: 8px; border: 1px solid #3a4d6b; background: #101c30; color: #e6edf7; font-size: .85rem; direction: ltr; text-align: left; }
 .channel-source button { white-space: nowrap; }
+.source-type-select { padding: 8px 10px; border-radius: 8px; border: 1px solid #3a4d6b; background: #101c30; color: #e6edf7; font-size: .85rem; }
+.channel-source label { display: inline-flex; align-items: center; gap: 6px; }
+
 .source-status { font-size: .78rem; color: #86efac; }
 .source-status.error { color: #fca5a5; }
 .category-card { overflow: hidden; position: relative; }
