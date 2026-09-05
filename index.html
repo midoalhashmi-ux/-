@@ -37,15 +37,24 @@
           <button id="logout-button" class="secondary-button" type="button">تسجيل الخروج</button>
         </header>
 
-        <nav class="admin-nav" aria-label="إدارة اللوحة">
+        <nav class="admin-nav main-nav" aria-label="الأقسام الرئيسية">
+          <button class="nav-group-button active" type="button" data-group="app">📱 التطبيق</button>
+          <button class="nav-group-button" type="button" data-group="player">▶️ المشغل</button>
+          <button class="nav-group-button" type="button" data-group="ads">📢 الإعلانات</button>
+        </nav>
+
+        <nav class="admin-nav sub-nav" data-group-nav="app" aria-label="أقسام التطبيق">
           <button class="nav-button active" type="button" data-panel="home-panel">الرئيسية</button>
           <button class="nav-button" type="button" data-panel="matches-panel">المباريات</button>
           <button class="nav-button" type="button" data-panel="messages-panel">الرسائل <span id="messages-badge" class="count-badge hidden"></span></button>
-          <button class="nav-button" type="button" data-panel="ads-panel">الإعلانات</button>
-          <button class="nav-button" type="button" data-panel="settings-panel">الإعدادات</button>
+          <button class="nav-button" type="button" data-panel="app-settings-panel">الإعدادات</button>
         </nav>
 
-        <section id="home-panel" class="admin-panel">
+        <nav class="admin-nav sub-nav hidden" data-group-nav="player" aria-label="أقسام المشغل">
+          <button class="nav-button active" type="button" data-panel="player-settings-panel">إعدادات المشغل</button>
+        </nav>
+
+        <section id="home-panel" class="admin-panel" data-group="app">
 
         <section class="section-heading">
           <div>
@@ -187,7 +196,7 @@
         </section>
         </section>
 
-        <section id="matches-panel" class="admin-panel hidden">
+        <section id="matches-panel" class="admin-panel hidden" data-group="app">
           <section class="section-heading">
             <div>
               <p class="eyebrow">مصدر خارجي · API-Football</p>
@@ -210,7 +219,7 @@
           <section id="matches-message" class="card message-card hidden" role="status"></section>
         </section>
 
-        <section id="messages-panel" class="admin-panel hidden">
+        <section id="messages-panel" class="admin-panel hidden" data-group="app">
           <section class="section-heading">
             <div>
               <p class="eyebrow">تواصل معنا · إبلاغ عن رابط معطوب</p>
@@ -224,7 +233,7 @@
           <section id="messages-list" class="channels-list hidden"></section>
         </section>
 
-        <section id="ads-panel" class="admin-panel hidden">
+        <section id="ads-panel" class="admin-panel hidden" data-group="ads">
           <section class="section-heading">
             <div>
               <p class="eyebrow">إعدادات التطبيق</p>
@@ -266,18 +275,9 @@
           </section>
         </section>
 
-        <section id="settings-panel" class="admin-panel hidden">
+        <section id="app-settings-panel" class="admin-panel hidden" data-group="app">
           <section class="section-heading"><div><p class="eyebrow">إعدادات التطبيق</p><h2>ألوان التطبيق</h2><p class="muted">تتغير في تطبيق الجوال فور حفظها.</p></div></section>
           <section class="card category-form-card"><div><h2>الثيم</h2><p class="muted">اكتب اللون بصيغة مثل #00C853.</p></div><form id="theme-form" class="category-form"><div><label for="primary-color">اللون الرئيسي</label><input id="primary-color" value="#00C853" pattern="#[0-9a-fA-F]{6}" required /></div><div><label for="background-color">لون الخلفية</label><input id="background-color" value="#0D0D0D" pattern="#[0-9a-fA-F]{6}" required /></div><p id="theme-message" class="form-message"></p><button type="submit">حفظ الألوان</button></form></section>
-          <section class="card category-form-card"><div><h2>تطبيق المشغل</h2><p class="muted">هذه الإعدادات تخبر تطبيق المحتوى كيف يفتح المشغل وكيف ينقل المستخدم للمتجر.</p></div><form id="player-form" class="category-form"><div><label for="player-scheme">اسم الرابط الداخلي</label><input id="player-scheme" value="sportsplayer" maxlength="30" placeholder="sportsplayer" required /></div><div><label for="player-package">اسم حزمة أندرويد للمشغل (Package Name)</label><input id="player-package" maxlength="100" placeholder="com.midoalhashmi.zoltrastream" required /></div><div><label for="player-store-url">رابط Google Play المباشر</label><input id="player-store-url" type="url" placeholder="https://play.google.com/store/apps/details?id=..." required /><p class="muted" style="margin-top:4px">يُستخدم فقط عندما يتعذّر فتح تطبيق المشغل تلقائياً (لعرض رابط تنزيله) — لا علاقة له بالتحديث الإجباري.</p></div><div><label for="player-min-version">أقل إصدار مسموح لتشغيل المشغل (Version Name)</label><input id="player-min-version" maxlength="20" placeholder="مثال: 1.2.0" /><p class="muted" style="margin-top:4px">أي نسخة مثبّتة أقل من هذا الرقم تُجبر على التحديث قبل المتابعة. اتركه فارغاً لتعطيل التحديث الإجباري.</p></div><div><label for="player-update-url">رابط التحديث الإجباري</label><input id="player-update-url" type="url" placeholder="https://play.google.com/store/apps/details?id=..." /><p class="muted" style="margin-top:4px">حقل مستقل تماماً عن رابط Google Play أعلاه — لازم تعبّيه صراحةً وإلا لن يعمل التحديث الإجباري حتى لو ضبطت أقل إصدار مسموح.</p></div>
-            <div class="ads-group-heading"><h3>زر الاشتراك المميز</h3></div>
-            <div class="ads-master-toggle">
-              <label class="protect-toggle"><input id="premium-enabled" type="checkbox"> إظهار زر الاشتراك المميز في تطبيق المشغل</label>
-            </div>
-            <p class="muted" style="margin-top:-8px">عند إيقاف المفتاح لا يظهر الزر إطلاقاً في التطبيق، حتى لو كانت بقية الحقول معبّأة.</p>
-            <div><label for="premium-url">رابط الاشتراك</label><input id="premium-url" type="url" placeholder="https://your-site.com/subscribe" /></div>
-            <div><label for="premium-button-text">نص الزر</label><input id="premium-button-text" maxlength="40" placeholder="الاشتراك المميز" /></div>
-            <p id="player-message" class="form-message"></p><button type="submit">حفظ إعدادات المشغل</button></form></section>
           <section class="card legal-form-card">
             <div><h2>الشروط والأحكام وسياسة الخصوصية</h2><p class="muted">النصوص التي تظهر داخل التطبيق من القائمة الجانبية.</p></div>
             <form id="legal-form" class="legal-form">
@@ -287,6 +287,19 @@
               <button type="submit">حفظ النصوص</button>
             </form>
           </section>
+        </section>
+
+        <section id="player-settings-panel" class="admin-panel hidden" data-group="player">
+          <section class="section-heading"><div><p class="eyebrow">إعدادات المشغل</p><h2>تطبيق المشغل</h2><p class="muted">هذه الإعدادات تخبر تطبيق المحتوى كيف يفتح المشغل وكيف ينقل المستخدم للمتجر.</p></div></section>
+          <section class="card category-form-card"><form id="player-form" class="category-form"><div><label for="player-scheme">اسم الرابط الداخلي</label><input id="player-scheme" value="sportsplayer" maxlength="30" placeholder="sportsplayer" required /></div><div><label for="player-package">اسم حزمة أندرويد للمشغل (Package Name)</label><input id="player-package" maxlength="100" placeholder="com.midoalhashmi.zoltrastream" required /></div><div><label for="player-store-url">رابط Google Play المباشر</label><input id="player-store-url" type="url" placeholder="https://play.google.com/store/apps/details?id=..." required /><p class="muted" style="margin-top:4px">يُستخدم فقط عندما يتعذّر فتح تطبيق المشغل تلقائياً (لعرض رابط تنزيله) — لا علاقة له بالتحديث الإجباري.</p></div><div><label for="player-min-version">أقل إصدار مسموح لتشغيل المشغل (Version Name)</label><input id="player-min-version" maxlength="20" placeholder="مثال: 1.2.0" /><p class="muted" style="margin-top:4px">أي نسخة مثبّتة أقل من هذا الرقم تُجبر على التحديث قبل المتابعة. اتركه فارغاً لتعطيل التحديث الإجباري.</p></div><div><label for="player-update-url">رابط التحديث الإجباري</label><input id="player-update-url" type="url" placeholder="https://play.google.com/store/apps/details?id=..." /><p class="muted" style="margin-top:4px">حقل مستقل تماماً عن رابط Google Play أعلاه — لازم تعبّيه صراحةً وإلا لن يعمل التحديث الإجباري حتى لو ضبطت أقل إصدار مسموح.</p></div>
+            <div class="ads-group-heading"><h3>زر الاشتراك المميز</h3></div>
+            <div class="ads-master-toggle">
+              <label class="protect-toggle"><input id="premium-enabled" type="checkbox"> إظهار زر الاشتراك المميز في تطبيق المشغل</label>
+            </div>
+            <p class="muted" style="margin-top:-8px">عند إيقاف المفتاح لا يظهر الزر إطلاقاً في التطبيق، حتى لو كانت بقية الحقول معبّأة.</p>
+            <div><label for="premium-url">رابط الاشتراك</label><input id="premium-url" type="url" placeholder="https://your-site.com/subscribe" /></div>
+            <div><label for="premium-button-text">نص الزر</label><input id="premium-button-text" maxlength="40" placeholder="الاشتراك المميز" /></div>
+            <p id="player-message" class="form-message"></p><button type="submit">حفظ إعدادات المشغل</button></form></section>
         </section>
       </section>
     </main>

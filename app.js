@@ -68,7 +68,9 @@ const categoriesContext = document.querySelector('#categories-context');
 const categoryFormTitle = document.querySelector('#category-form-title');
 const backToRoot = document.querySelector('#back-to-root');
 const retryCategories = document.querySelector('#retry-categories');
-const navButtons = document.querySelectorAll('[data-panel]');
+const groupButtons = document.querySelectorAll('.nav-group-button[data-group]');
+const subNavs = document.querySelectorAll('[data-group-nav]');
+const subNavButtons = document.querySelectorAll('.sub-nav [data-panel]');
 
 // ---- تحديد متعدد وحذف جماعي (أقسام) ----
 const categoriesSelectToggle = document.querySelector('#categories-select-toggle');
@@ -800,9 +802,30 @@ loginForm.addEventListener('submit', async (event) => {
 
 document.querySelector('#logout-button').addEventListener('click', () => signOut(auth));
 retryCategories.addEventListener('click', loadCategories);
-navButtons.forEach((button) => button.addEventListener('click', () => {
-  navButtons.forEach((item) => item.classList.toggle('active', item === button));
-  document.querySelectorAll('.admin-panel').forEach((panel) => panel.classList.toggle('hidden', panel.id !== button.dataset.panel));
+function showPanel(panelId) {
+  document.querySelectorAll('.admin-panel').forEach((panel) => panel.classList.toggle('hidden', panel.id !== panelId));
+}
+
+groupButtons.forEach((button) => button.addEventListener('click', () => {
+  groupButtons.forEach((item) => item.classList.toggle('active', item === button));
+  const group = button.dataset.group;
+  const activeSubNav = document.querySelector(`[data-group-nav="${group}"]`);
+  subNavs.forEach((nav) => nav.classList.toggle('hidden', nav !== activeSubNav));
+
+  if (activeSubNav) {
+    const activeSubButton = activeSubNav.querySelector('.nav-button.active') || activeSubNav.querySelector('.nav-button');
+    activeSubNav.querySelectorAll('.nav-button').forEach((item) => item.classList.toggle('active', item === activeSubButton));
+    showPanel(activeSubButton?.dataset.panel);
+  } else {
+    const directPanel = document.querySelector(`.admin-panel[data-group="${group}"]`);
+    showPanel(directPanel?.id);
+  }
+}));
+
+subNavButtons.forEach((button) => button.addEventListener('click', () => {
+  const nav = button.closest('.sub-nav');
+  nav.querySelectorAll('.nav-button').forEach((item) => item.classList.toggle('active', item === button));
+  showPanel(button.dataset.panel);
 }));
 
 categoriesList.addEventListener('click', (event) => {

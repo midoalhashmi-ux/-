@@ -35,6 +35,11 @@ button:disabled { opacity: .65; cursor: wait; }
 .admin-nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
 .nav-button { color: #cbd5e1; background: #17233a; border: 1px solid #3a4d6b; }
 .nav-button.active { color: #082f49; background: #7dd3fc; border-color: #7dd3fc; }
+.main-nav { margin-bottom: 8px; }
+.nav-group-button { color: #e2e8f0; background: #1e2942; border: 1px solid #3a4d6b; font-weight: 700; padding: 12px 20px; font-size: 1rem; border-radius: 10px; }
+.nav-group-button.active { color: #052e16; background: #4ade80; border-color: #4ade80; }
+.sub-nav { margin-top: 4px; padding-inline-start: 6px; }
+.sub-nav .nav-button { font-size: .9rem; padding: 8px 14px; }
 .eyebrow, .step-label { color: #7dd3fc; font-size: .82rem; margin-bottom: 6px; }
 .section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin: 28px 0 14px; }
 .section-actions { display: flex; align-items: center; gap: 10px; }
