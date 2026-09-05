@@ -19,6 +19,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // عنوان Cloudflare Worker (بديل Firebase Cloud Functions — بدون خطة Blaze
@@ -123,6 +124,14 @@ const marqueeSaveButton = document.querySelector('#marquee-save-button');
 const marqueeCloseButton = document.querySelector('#marquee-close-button');
 const marqueePreview = document.querySelector('#marquee-preview');
 
+// ---- استيراد دفعة أقسام وقنوات ----
+const bulkFormCard = document.querySelector('#bulk-form-card');
+const bulkForm = document.querySelector('#bulk-form');
+const bulkTextarea = document.querySelector('#bulk-json');
+const bulkFormMessage = document.querySelector('#bulk-form-message');
+const bulkSaveButton = document.querySelector('#bulk-save-button');
+const bulkCloseButton = document.querySelector('#bulk-close-button');
+
 let currentChannels = [];
 let currentCategories = [];
 let currentParentId = null;
@@ -190,6 +199,7 @@ function closeAllFormCards() {
   categoryFormCard.classList.add('hidden');
   channelFormCard.classList.add('hidden');
   marqueeFormCard.classList.add('hidden');
+  bulkFormCard.classList.add('hidden');
 }
 
 function updateAddMenuAvailability() {
@@ -260,6 +270,13 @@ function openMarqueeForm() {
   marqueeFormMessage.textContent = '';
   marqueeFormMessage.classList.remove('error');
   marqueeFormCard.classList.remove('hidden');
+}
+
+function openBulkForm() {
+  closeAllFormCards();
+  bulkFormMessage.textContent = '';
+  bulkFormMessage.classList.remove('error');
+  bulkFormCard.classList.remove('hidden');
 }
 
 function renderMarqueePreview() {
@@ -900,6 +917,110 @@ addMenu.addEventListener('click', (event) => {
   if (type === 'category') openCategoryForm(null);
   else if (type === 'channel') openChannelForm(null);
   else if (type === 'marquee') openMarqueeForm();
+  else if (type === 'bulk') openBulkForm();
+});
+bulkCloseButton.addEventListener('click', () => {
+  bulkForm.reset();
+  closeAllFormCards();
+});
+bulkForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  bulkFormMessage.textContent = '';
+  bulkFormMessage.classList.remove('error');
+
+  let data;
+  try {
+    data = JSON.parse(bulkTextarea.value);
+  } catch (_) {
+    bulkFormMessage.textContent = 'صيغة JSON غير صحيحة. تأكد من نسخ النص كاملاً.';
+    bulkFormMessage.classList.add('error');
+    return;
+  }
+
+  const categories = Array.isArray(data.categories) ? data.categories : [];
+  const looseChannels = Array.isArray(data.channels) ? data.channels : [];
+
+  if (!categories.length && !looseChannels.length) {
+    bulkFormMessage.textContent = 'لم يتم العثور على أقسام أو قنوات في النص.';
+    bulkFormMessage.classList.add('error');
+    return;
+  }
+  if (looseChannels.length && currentParentId === null) {
+    bulkFormMessage.textContent = 'لإضافة قنوات مباشرة بدون قسم جديد، افتح قسماً أولاً، أو ضعها داخل "categories".';
+    bulkFormMessage.classList.add('error');
+    return;
+  }
+
+  bulkSaveButton.disabled = true;
+  bulkSaveButton.textContent = 'جارٍ الاستيراد…';
+  try {
+    const batch = writeBatch(db);
+    const baseOrder = Date.now();
+    let categoryCount = 0;
+    let channelCount = 0;
+
+    categories.forEach((cat, index) => {
+      const categoryRef = doc(collection(db, 'categories'));
+      batch.set(categoryRef, {
+        title: cat.title,
+        iconUrl: cat.iconUrl || null,
+        marqueeText: cat.marqueeText || null,
+        isPremium: Boolean(cat.isPremium),
+        parentId: currentParentId,
+        order: baseOrder + index,
+        createdAt: serverTimestamp(),
+      });
+      categoryCount += 1;
+
+      const channels = Array.isArray(cat.channels) ? cat.channels : [];
+      channels.forEach((ch) => {
+        const channelRef = doc(collection(db, 'channels'));
+        batch.set(channelRef, {
+          categoryId: categoryRef.id,
+          title: ch.title,
+          subtitle: ch.subtitle || '',
+          status: ch.status || 'live',
+          logoUrl: ch.logoUrl || null,
+          playerChannelKey: ch.playerChannelKey || null,
+          viewCount: 0,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        channelCount += 1;
+      });
+    });
+
+    looseChannels.forEach((ch) => {
+      const channelRef = doc(collection(db, 'channels'));
+      batch.set(channelRef, {
+        categoryId: currentParentId,
+        title: ch.title,
+        subtitle: ch.subtitle || '',
+        status: ch.status || 'live',
+        logoUrl: ch.logoUrl || null,
+        playerChannelKey: ch.playerChannelKey || null,
+        viewCount: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      channelCount += 1;
+    });
+
+    await batch.commit();
+    bulkFormMessage.classList.remove('error');
+    bulkFormMessage.textContent = `تم استيراد ${categoryCount} قسم و ${channelCount} قناة بنجاح ✓`;
+    bulkTextarea.value = '';
+    window.setTimeout(async () => {
+      closeAllFormCards();
+      await loadCategories();
+    }, 900);
+  } catch (error) {
+    bulkFormMessage.textContent = 'تعذر تنفيذ الاستيراد. تحقق من قواعد Firestore وصيغة JSON.';
+    bulkFormMessage.classList.add('error');
+  } finally {
+    bulkSaveButton.disabled = false;
+    bulkSaveButton.textContent = 'استيراد';
+  }
 });
 categoryCloseButton.addEventListener('click', () => {
   categoryForm.reset();

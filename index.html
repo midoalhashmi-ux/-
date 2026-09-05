@@ -61,6 +61,7 @@
               <div id="add-menu" class="add-menu hidden" role="menu">
                 <button type="button" data-add-type="category" role="menuitem">📁 قسم</button>
                 <button type="button" data-add-type="channel" role="menuitem">📺 قناة</button>
+                <button type="button" data-add-type="bulk" role="menuitem">📥 استيراد دفعة</button>
                 <button type="button" data-add-type="marquee" role="menuitem">🔄 نص متحرك</button>
                 <button type="button" data-add-type="text-block" disabled role="menuitem">📝 نص كتابي (قريباً)</button>
                 <button type="button" data-add-type="cell" disabled role="menuitem">🧩 خلية للقسم (قريباً)</button>
@@ -137,6 +138,22 @@
         </section>
 
         <section id="marquee-preview" class="card marquee-preview hidden"></section>
+
+        <section id="bulk-form-card" class="card category-form-card hidden">
+          <div>
+            <h2 id="bulk-form-title">استيراد أقسام وقنوات دفعة واحدة</h2>
+            <p class="muted">الصق نص JSON يحتوي على الأقسام (وقنواتها داخل كل قسم اختيارياً)، ثم اضغط استيراد. تُضاف كأقسام فرعية للمكان المفتوح حالياً، أو كأقسام رئيسية إذا كنت في الشاشة الرئيسية.</p>
+          </div>
+          <form id="bulk-form" class="marquee-form">
+            <label for="bulk-json">نص JSON</label>
+            <textarea id="bulk-json" rows="10" placeholder='{"categories":[{"title":"بي إن سبورت","channels":[{"title":"بي إن سبورت 1","subtitle":"HD"}]}]}'></textarea>
+            <p id="bulk-form-message" class="form-message" role="status"></p>
+            <div class="form-actions">
+              <button id="bulk-save-button" type="submit">استيراد</button>
+              <button id="bulk-close-button" class="secondary-button" type="button">إغلاق</button>
+            </div>
+          </form>
+        </section>
 
         <section id="categories-loading" class="card loading-card">
           <span class="spinner" aria-hidden="true"></span>
