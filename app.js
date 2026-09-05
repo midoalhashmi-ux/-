@@ -69,6 +69,15 @@ const backToRoot = document.querySelector('#back-to-root');
 const retryCategories = document.querySelector('#retry-categories');
 const navButtons = document.querySelectorAll('[data-panel]');
 
+// ---- تحديد متعدد وحذف جماعي (أقسام) ----
+const categoriesSelectToggle = document.querySelector('#categories-select-toggle');
+const categoriesBulkBar = document.querySelector('#categories-bulk-bar');
+const categoriesSelectedCount = document.querySelector('#categories-selected-count');
+const categoriesBulkDelete = document.querySelector('#categories-bulk-delete');
+const categoriesSelectCancel = document.querySelector('#categories-select-cancel');
+let categorySelectMode = false;
+const selectedCategoryIds = new Set();
+
 // ---- زر "+ إضافة" الموحّد وبطاقاته ----
 const addMenuToggle = document.querySelector('#add-menu-toggle');
 const addMenu = document.querySelector('#add-menu');
@@ -95,6 +104,15 @@ const channelsLoading = document.querySelector('#channels-loading');
 const channelsEmpty = document.querySelector('#channels-empty');
 const channelsCount = document.querySelector('#channels-count');
 const CHANNELS_EMPTY_HTML = channelsEmpty.innerHTML;
+
+// ---- تحديد متعدد وحذف جماعي (قنوات) ----
+const channelsSelectToggle = document.querySelector('#channels-select-toggle');
+const channelsBulkBar = document.querySelector('#channels-bulk-bar');
+const channelsSelectedCount = document.querySelector('#channels-selected-count');
+const channelsBulkDelete = document.querySelector('#channels-bulk-delete');
+const channelsSelectCancel = document.querySelector('#channels-select-cancel');
+let channelSelectMode = false;
+const selectedChannelIds = new Set();
 
 const marqueeFormCard = document.querySelector('#marquee-form-card');
 const marqueeForm = document.querySelector('#marquee-form');
@@ -274,7 +292,8 @@ function renderChannelsForCurrentCategory() {
   channelsEmpty.classList.add('hidden');
   channelsList.innerHTML = list.map((channel) => {
     const logo = channel.logoUrl ? `<img class="channel-logo" src="${escapeHtml(channel.logoUrl)}" alt="">` : '<div class="channel-logo category-image-placeholder">⚽</div>';
-    return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p><div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
+    const checkbox = channelSelectMode ? `<label class="select-checkbox-wrap"><input type="checkbox" class="select-checkbox" data-select-channel="${escapeHtml(channel.id)}" ${selectedChannelIds.has(channel.id) ? 'checked' : ''}></label>` : '';
+    return `<article class="card channel-item">${checkbox}${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p><div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
   }).join('');
   channelsList.classList.remove('hidden');
   loadChannelSources(list);
@@ -306,7 +325,8 @@ function renderCurrentCategoryView() {
         ? `<img class="category-image" src="${escapeHtml(category.iconUrl)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'category-image-placeholder', textContent: '⚽'}))">`
         : '<div class="category-image-placeholder" aria-hidden="true">⚽</div>';
       const childrenCount = currentCategories.filter((item) => item.parentId === id).length;
-      return `<article class="card category-card">${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${childrenCount ? `${childrenCount} أقسام داخلية` : 'لا توجد أقسام داخلية'}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p><button class="open-category-button" type="button" data-open-category="${escapeHtml(id)}">فتح القسم</button><div class="category-tools"><button type="button" data-edit-category="${escapeHtml(id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-category="${escapeHtml(id)}">حذف</button></div></div></article>`;
+      const checkbox = categorySelectMode ? `<label class="select-checkbox-wrap"><input type="checkbox" class="select-checkbox" data-select-category="${escapeHtml(id)}" ${selectedCategoryIds.has(id) ? 'checked' : ''}></label>` : '';
+      return `<article class="card category-card">${checkbox}${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${childrenCount ? `${childrenCount} أقسام داخلية` : 'لا توجد أقسام داخلية'}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p><button class="open-category-button" type="button" data-open-category="${escapeHtml(id)}">فتح القسم</button><div class="category-tools"><button type="button" data-edit-category="${escapeHtml(id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-category="${escapeHtml(id)}">حذف</button></div></div></article>`;
     }).join('');
     categoriesList.classList.remove('hidden');
   }
@@ -769,15 +789,72 @@ navButtons.forEach((button) => button.addEventListener('click', () => {
 }));
 
 categoriesList.addEventListener('click', (event) => {
+  const checkbox = event.target.closest('[data-select-category]');
+  if (checkbox) {
+    const id = checkbox.dataset.selectCategory;
+    if (checkbox.checked) selectedCategoryIds.add(id); else selectedCategoryIds.delete(id);
+    updateCategoriesBulkBar();
+    return;
+  }
   const edit = event.target.closest('[data-edit-category]');
   const remove = event.target.closest('[data-delete-category]');
   if (edit) return editCategory(edit.dataset.editCategory);
   if (remove) return deleteCategory(remove.dataset.deleteCategory);
   const button = event.target.closest('[data-open-category]');
   if (!button) return;
+  if (categorySelectMode) return;
   currentParentId = button.dataset.openCategory;
   closeAllFormCards();
   renderCurrentCategoryView();
+});
+
+function updateCategoriesBulkBar() {
+  categoriesSelectedCount.textContent = `${selectedCategoryIds.size} محدد`;
+  categoriesBulkDelete.disabled = selectedCategoryIds.size === 0;
+}
+
+categoriesSelectToggle.addEventListener('click', () => {
+  categorySelectMode = !categorySelectMode;
+  selectedCategoryIds.clear();
+  categoriesBulkBar.classList.toggle('hidden', !categorySelectMode);
+  categoriesSelectToggle.textContent = categorySelectMode ? 'إلغاء وضع التحديد' : 'تحديد للحذف';
+  updateCategoriesBulkBar();
+  renderCurrentCategoryView();
+});
+
+categoriesSelectCancel.addEventListener('click', () => {
+  categorySelectMode = false;
+  selectedCategoryIds.clear();
+  categoriesBulkBar.classList.add('hidden');
+  categoriesSelectToggle.textContent = 'تحديد للحذف';
+  renderCurrentCategoryView();
+});
+
+categoriesBulkDelete.addEventListener('click', async () => {
+  const ids = [...selectedCategoryIds];
+  if (!ids.length) return;
+  // نفس شرط الحذف المفرد: أي قسم محدد فيه أقسام فرعية أو قنوات يوقف
+  // العملية كاملة بدل حذف جزئي قد يربك المستخدم.
+  const blocked = ids.filter((id) => currentCategories.some((item) => item.parentId === id)
+    || currentChannels.some((item) => item.categoryId === id));
+  if (blocked.length) {
+    const names = blocked.map((id) => currentCategories.find((item) => item.id === id)?.title || id).join('، ');
+    window.alert(`لا يمكن إتمام الحذف الجماعي: الأقسام التالية تحتوي على أقسام فرعية أو قنوات ولازم تُفرَّغ أولاً:\n${names}`);
+    return;
+  }
+  if (!window.confirm(`حذف ${ids.length} قسم نهائياً؟`)) return;
+  categoriesBulkDelete.disabled = true;
+  try {
+    await Promise.all(ids.map((id) => deleteDoc(doc(db, 'categories', id))));
+    selectedCategoryIds.clear();
+    categorySelectMode = false;
+    categoriesBulkBar.classList.add('hidden');
+    categoriesSelectToggle.textContent = 'تحديد للحذف';
+    await loadCategories();
+  } catch (_) {
+    window.alert('تعذر حذف بعض الأقسام. تحقق من قواعد Firestore وحاول مرة أخرى.');
+    categoriesBulkDelete.disabled = false;
+  }
 });
 
 function editCategory(id) {
@@ -795,6 +872,8 @@ async function deleteCategory(id) {
 
 backToRoot.addEventListener('click', () => {
   currentParentId = null;
+  selectedCategoryIds.clear();
+  if (categorySelectMode) updateCategoriesBulkBar();
   closeAllFormCards();
   renderCurrentCategoryView();
 });
@@ -911,10 +990,57 @@ channelForm.addEventListener('submit', async (event) => {
 });
 channelCloseButton.addEventListener('click', () => { resetChannelForm(); closeAllFormCards(); });
 channelsList.addEventListener('click', async (event) => {
+  const checkbox = event.target.closest('[data-select-channel]');
+  if (checkbox) {
+    const id = checkbox.dataset.selectChannel;
+    if (checkbox.checked) selectedChannelIds.add(id); else selectedChannelIds.delete(id);
+    updateChannelsBulkBar();
+    return;
+  }
   const edit = event.target.closest('[data-edit-channel]'); const remove = event.target.closest('[data-delete-channel]'); const saveSource = event.target.closest('[data-save-source]');
   if (edit) return openChannelForm(edit.dataset.editChannel);
   if (remove) { const channel = currentChannels.find((item) => item.id === remove.dataset.deleteChannel); if (!window.confirm(`حذف «${channel?.title || ''}»؟`)) return; try { await deleteDoc(doc(db, 'channels', remove.dataset.deleteChannel)); await loadChannels(); } catch (_) { window.alert('تعذر الحذف.'); } return; }
   if (saveSource) { await saveChannelSource(saveSource.dataset.saveSource); }
+});
+
+function updateChannelsBulkBar() {
+  channelsSelectedCount.textContent = `${selectedChannelIds.size} محدد`;
+  channelsBulkDelete.disabled = selectedChannelIds.size === 0;
+}
+
+channelsSelectToggle.addEventListener('click', () => {
+  channelSelectMode = !channelSelectMode;
+  selectedChannelIds.clear();
+  channelsBulkBar.classList.toggle('hidden', !channelSelectMode);
+  channelsSelectToggle.textContent = channelSelectMode ? 'إلغاء وضع التحديد' : 'تحديد للحذف';
+  updateChannelsBulkBar();
+  renderChannelsForCurrentCategory();
+});
+
+channelsSelectCancel.addEventListener('click', () => {
+  channelSelectMode = false;
+  selectedChannelIds.clear();
+  channelsBulkBar.classList.add('hidden');
+  channelsSelectToggle.textContent = 'تحديد للحذف';
+  renderChannelsForCurrentCategory();
+});
+
+channelsBulkDelete.addEventListener('click', async () => {
+  const ids = [...selectedChannelIds];
+  if (!ids.length) return;
+  if (!window.confirm(`حذف ${ids.length} قناة نهائياً؟`)) return;
+  channelsBulkDelete.disabled = true;
+  try {
+    await Promise.all(ids.map((id) => deleteDoc(doc(db, 'channels', id))));
+    selectedChannelIds.clear();
+    channelSelectMode = false;
+    channelsBulkBar.classList.add('hidden');
+    channelsSelectToggle.textContent = 'تحديد للحذف';
+    await loadChannels();
+  } catch (_) {
+    window.alert('تعذر حذف بعض القنوات. حاول مرة أخرى.');
+    channelsBulkDelete.disabled = false;
+  }
 });
 
 document.querySelector('#theme-form').addEventListener('submit', async (event) => {

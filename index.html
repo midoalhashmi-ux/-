@@ -55,6 +55,7 @@
           </div>
           <div class="section-actions">
             <button id="back-to-root" class="secondary-button hidden" type="button">العودة للأقسام الرئيسية</button>
+            <button id="categories-select-toggle" class="secondary-button" type="button">تحديد للحذف</button>
             <div class="add-menu-wrap">
               <button id="add-menu-toggle" class="add-menu-toggle" type="button" aria-haspopup="true" aria-expanded="false">+ إضافة</button>
               <div id="add-menu" class="add-menu hidden" role="menu">
@@ -68,6 +69,12 @@
             <span id="categories-count" class="count-badge">جارٍ التحميل…</span>
           </div>
         </section>
+
+        <div id="categories-bulk-bar" class="bulk-bar hidden">
+          <span id="categories-selected-count">0 محدد</span>
+          <button id="categories-bulk-delete" class="delete-category-button" type="button" disabled>حذف المحدد</button>
+          <button id="categories-select-cancel" class="secondary-button" type="button">إلغاء التحديد</button>
+        </div>
 
         <section id="category-form-card" class="card category-form-card hidden">
           <div>
@@ -147,8 +154,16 @@
         <section id="channels-section" class="hidden">
           <section class="section-heading channels-subheading">
             <div><p class="eyebrow">قنوات هذا القسم</p><h3 id="channels-title">القنوات</h3></div>
-            <span id="channels-count" class="count-badge">0 قناة</span>
+            <div class="section-actions">
+              <button id="channels-select-toggle" class="secondary-button" type="button">تحديد للحذف</button>
+              <span id="channels-count" class="count-badge">0 قناة</span>
+            </div>
           </section>
+          <div id="channels-bulk-bar" class="bulk-bar hidden">
+            <span id="channels-selected-count">0 محدد</span>
+            <button id="channels-bulk-delete" class="delete-category-button" type="button" disabled>حذف المحدد</button>
+            <button id="channels-select-cancel" class="secondary-button" type="button">إلغاء التحديد</button>
+          </div>
           <section id="channels-loading" class="card loading-card hidden"><span class="spinner"></span><p>جارٍ قراءة القنوات…</p></section>
           <section id="channels-empty" class="card message-card hidden"><h2>لا توجد قنوات بعد</h2><p>أضف أول قناة من زر «+ إضافة» أعلاه.</p></section>
           <section id="channels-list" class="channels-list hidden"></section>
