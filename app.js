@@ -301,7 +301,10 @@ function renderChannelsForCurrentCategory() {
   channelsEmpty.innerHTML = CHANNELS_EMPTY_HTML;
   const parent = currentCategories.find((item) => item.id === currentParentId);
   channelsTitle.textContent = parent?.title ? `قنوات «${parent.title}»` : 'القنوات';
-  const list = currentChannels.filter((channel) => channel.categoryId === currentParentId);
+  const list = currentChannels
+    .filter((channel) => channel.categoryId === currentParentId)
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   channelsCount.textContent = `${list.length} قناة`;
   if (!list.length) {
     channelsEmpty.classList.remove('hidden');
@@ -309,10 +312,11 @@ function renderChannelsForCurrentCategory() {
     return;
   }
   channelsEmpty.classList.add('hidden');
-  channelsList.innerHTML = list.map((channel) => {
+  channelsList.innerHTML = list.map((channel, index) => {
     const logo = channel.logoUrl ? `<img class="channel-logo" src="${escapeHtml(channel.logoUrl)}" alt="">` : '<div class="channel-logo category-image-placeholder">⚽</div>';
     const checkbox = channelSelectMode ? `<label class="select-checkbox-wrap"><input type="checkbox" class="select-checkbox" data-select-channel="${escapeHtml(channel.id)}" ${selectedChannelIds.has(channel.id) ? 'checked' : ''}></label>` : '';
-    return `<article class="card channel-item">${checkbox}${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p><div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
+    const orderControl = `<label class="order-control">الترتيب <input type="number" class="order-input" data-reorder-channel="${escapeHtml(channel.id)}" min="1" max="${list.length}" value="${index + 1}"></label>`;
+    return `<article class="card channel-item">${checkbox}${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p>${orderControl}<div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
   }).join('');
   channelsList.classList.remove('hidden');
   loadChannelSources(list);
@@ -338,14 +342,15 @@ function renderCurrentCategoryView() {
     categoriesList.classList.add('hidden');
   } else {
     categoriesEmpty.classList.add('hidden');
-    categoriesList.innerHTML = visibleCategories.map(({ id, ...category }) => {
+    categoriesList.innerHTML = visibleCategories.map(({ id, ...category }, index) => {
       const title = escapeHtml(category.title || 'قسم بلا اسم');
       const image = category.iconUrl
         ? `<img class="category-image" src="${escapeHtml(category.iconUrl)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'category-image-placeholder', textContent: '⚽'}))">`
         : '<div class="category-image-placeholder" aria-hidden="true">⚽</div>';
       const childrenCount = currentCategories.filter((item) => item.parentId === id).length;
       const checkbox = categorySelectMode ? `<label class="select-checkbox-wrap"><input type="checkbox" class="select-checkbox" data-select-category="${escapeHtml(id)}" ${selectedCategoryIds.has(id) ? 'checked' : ''}></label>` : '';
-      return `<article class="card category-card">${checkbox}${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${childrenCount ? `${childrenCount} أقسام داخلية` : 'لا توجد أقسام داخلية'}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p><button class="open-category-button" type="button" data-open-category="${escapeHtml(id)}">فتح القسم</button><div class="category-tools"><button type="button" data-edit-category="${escapeHtml(id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-category="${escapeHtml(id)}">حذف</button></div></div></article>`;
+      const orderControl = `<label class="order-control">الترتيب <input type="number" class="order-input" data-reorder-category="${escapeHtml(id)}" min="1" max="${visibleCategories.length}" value="${index + 1}"></label>`;
+      return `<article class="card category-card">${checkbox}${image}<div class="category-details"><h3>${title}</h3><p class="category-meta"><span>${childrenCount ? `${childrenCount} أقسام داخلية` : 'لا توجد أقسام داخلية'}</span>${category.isPremium ? '<span class="premium-tag">اشتراك</span>' : '<span>عام</span>'}</p>${orderControl}<button class="open-category-button" type="button" data-open-category="${escapeHtml(id)}">فتح القسم</button><div class="category-tools"><button type="button" data-edit-category="${escapeHtml(id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-category="${escapeHtml(id)}">حذف</button></div></div></article>`;
     }).join('');
     categoriesList.classList.remove('hidden');
   }
@@ -359,6 +364,60 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
   }[character]));
+}
+
+async function swapCategoryOrder(categoryId, newPosition) {
+  const siblings = currentCategories
+    .filter((item) => (item.parentId || null) === currentParentId)
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const fromIndex = siblings.findIndex((item) => item.id === categoryId);
+  const toIndex = newPosition - 1;
+  if (fromIndex === -1 || toIndex < 0 || toIndex >= siblings.length || toIndex === fromIndex) {
+    renderCurrentCategoryView();
+    return;
+  }
+  const a = siblings[fromIndex];
+  const b = siblings[toIndex];
+  const orderA = a.order ?? 0;
+  const orderB = b.order ?? 0;
+  try {
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'categories', a.id), { order: orderB });
+    batch.update(doc(db, 'categories', b.id), { order: orderA });
+    await batch.commit();
+    await loadCategories();
+  } catch (_) {
+    window.alert('تعذر تبديل الترتيب. حاول مرة أخرى.');
+    renderCurrentCategoryView();
+  }
+}
+
+async function swapChannelOrder(channelId, newPosition) {
+  const siblings = currentChannels
+    .filter((item) => item.categoryId === currentParentId)
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const fromIndex = siblings.findIndex((item) => item.id === channelId);
+  const toIndex = newPosition - 1;
+  if (fromIndex === -1 || toIndex < 0 || toIndex >= siblings.length || toIndex === fromIndex) {
+    renderChannelsForCurrentCategory();
+    return;
+  }
+  const a = siblings[fromIndex];
+  const b = siblings[toIndex];
+  const orderA = a.order ?? Date.now();
+  const orderB = b.order ?? Date.now() + 1;
+  try {
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'channels', a.id), { order: orderB });
+    batch.update(doc(db, 'channels', b.id), { order: orderA });
+    await batch.commit();
+    await loadChannels();
+  } catch (_) {
+    window.alert('تعذر تبديل الترتيب. حاول مرة أخرى.');
+    renderChannelsForCurrentCategory();
+  }
 }
 
 async function loadCategories() {
@@ -828,6 +887,14 @@ subNavButtons.forEach((button) => button.addEventListener('click', () => {
   showPanel(button.dataset.panel);
 }));
 
+categoriesList.addEventListener('change', (event) => {
+  const input = event.target.closest('[data-reorder-category]');
+  if (!input) return;
+  const newPosition = parseInt(input.value, 10);
+  if (!newPosition) return;
+  swapCategoryOrder(input.dataset.reorderCategory, newPosition);
+});
+
 categoriesList.addEventListener('click', (event) => {
   const checkbox = event.target.closest('[data-select-category]');
   if (checkbox) {
@@ -981,6 +1048,7 @@ bulkForm.addEventListener('submit', async (event) => {
     const baseOrder = Date.now();
     let categoryCount = 0;
     let channelCount = 0;
+    let channelOrderCounter = 0;
 
     categories.forEach((cat, index) => {
       const categoryRef = doc(collection(db, 'categories'));
@@ -1006,9 +1074,11 @@ bulkForm.addEventListener('submit', async (event) => {
           logoUrl: ch.logoUrl || null,
           playerChannelKey: ch.playerChannelKey || null,
           viewCount: 0,
+          order: baseOrder + channelOrderCounter,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
+        channelOrderCounter += 1;
         channelCount += 1;
       });
     });
@@ -1023,9 +1093,11 @@ bulkForm.addEventListener('submit', async (event) => {
         logoUrl: ch.logoUrl || null,
         playerChannelKey: ch.playerChannelKey || null,
         viewCount: 0,
+        order: baseOrder + channelOrderCounter,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      channelOrderCounter += 1;
       channelCount += 1;
     });
 
@@ -1127,12 +1199,19 @@ channelForm.addEventListener('submit', async (event) => {
   channelSaveButton.disabled = true;
   try {
     if (channelEditId.value) await updateDoc(doc(db, 'channels', channelEditId.value), data);
-    else await addDoc(collection(db, 'channels'), { ...data, viewCount: 0, createdAt: serverTimestamp() });
+    else await addDoc(collection(db, 'channels'), { ...data, viewCount: 0, order: Date.now(), createdAt: serverTimestamp() });
     resetChannelForm(); closeAllFormCards(); await loadChannels();
   } catch (_) { channelFormMessage.textContent = 'تعذر حفظ القناة. تحقق من قواعد Firestore.'; channelFormMessage.classList.add('error'); }
   finally { channelSaveButton.disabled = false; }
 });
 channelCloseButton.addEventListener('click', () => { resetChannelForm(); closeAllFormCards(); });
+channelsList.addEventListener('change', (event) => {
+  const input = event.target.closest('[data-reorder-channel]');
+  if (!input) return;
+  const newPosition = parseInt(input.value, 10);
+  if (!newPosition) return;
+  swapChannelOrder(input.dataset.reorderChannel, newPosition);
+});
 channelsList.addEventListener('click', async (event) => {
   const checkbox = event.target.closest('[data-select-channel]');
   if (checkbox) {
