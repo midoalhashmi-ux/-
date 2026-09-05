@@ -274,7 +274,7 @@ function renderChannelsForCurrentCategory() {
   channelsEmpty.classList.add('hidden');
   channelsList.innerHTML = list.map((channel) => {
     const logo = channel.logoUrl ? `<img class="channel-logo" src="${escapeHtml(channel.logoUrl)}" alt="">` : '<div class="channel-logo category-image-placeholder">⚽</div>';
-    return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p><div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><input type="text" class="source-input" data-api-input="${escapeHtml(channel.id)}" placeholder="أو رابط API لجلب الرابط تلقائيًا عند كل مشاهدة (اختياري)"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
+    return `<article class="card channel-item">${logo}<div class="channel-info"><h3>${escapeHtml(channel.title || 'قناة بلا اسم')}</h3><p>${escapeHtml(channel.subtitle || 'بدون وصف')}</p><div class="channel-source"><label class="protect-toggle"><input type="checkbox" data-protected-toggle="${escapeHtml(channel.id)}" ${channel.protected === false ? '' : 'checked'}> حماية برابط مؤقت</label><input type="text" class="source-input" data-source-input="${escapeHtml(channel.id)}" placeholder="الصق رابط m3u8 هنا"><button type="button" data-save-source="${escapeHtml(channel.id)}">حفظ المصدر</button><span class="source-status" data-source-status="${escapeHtml(channel.id)}"></span></div></div><div class="channel-actions"><button type="button" data-edit-channel="${escapeHtml(channel.id)}">تعديل</button><button class="delete-category-button" type="button" data-delete-channel="${escapeHtml(channel.id)}">حذف</button></div></article>`;
   }).join('');
   channelsList.classList.remove('hidden');
   loadChannelSources(list);
@@ -373,7 +373,6 @@ async function loadChannels() {
 async function loadChannelSources(channels) {
   await Promise.all(channels.map(async (channel) => {
     const input = document.querySelector(`[data-source-input="${channel.id}"]`);
-    const apiInput = document.querySelector(`[data-api-input="${channel.id}"]`);
     const status = document.querySelector(`[data-source-status="${channel.id}"]`);
     if (!input) return;
     const isProtected = channel.protected !== false;
@@ -384,10 +383,7 @@ async function loadChannelSources(channels) {
     try {
       const snapshot = await getDoc(doc(db, 'privateStreams', channel.id));
       const data = snapshot.data();
-      if (data?.apiUrl && apiInput) {
-        apiInput.value = data.apiUrl;
-        if (status) status.textContent = 'مربوط برابط API — يُجلَب حيًا عند كل مشاهدة';
-      } else if (data?.url) {
+      if (data?.url) {
         input.value = data.url;
         if (status) status.textContent = 'محفوظ ومحمي برابط مؤقت';
       }
@@ -399,27 +395,22 @@ async function loadChannelSources(channels) {
 
 async function saveChannelSource(channelId) {
   const input = document.querySelector(`[data-source-input="${channelId}"]`);
-  const apiInput = document.querySelector(`[data-api-input="${channelId}"]`);
   const status = document.querySelector(`[data-source-status="${channelId}"]`);
   const button = document.querySelector(`[data-save-source="${channelId}"]`);
   const protectedToggle = document.querySelector(`[data-protected-toggle="${channelId}"]`);
   if (!input) return;
   const url = input.value.trim();
-  const apiUrl = apiInput ? apiInput.value.trim() : '';
-  // لازم رابط m3u8 يدوي أو رابط API — واحد منهم على الأقل.
-  if (!url && !apiUrl) { if (status) { status.textContent = 'الصق رابط m3u8 أو رابط API أولاً'; status.classList.add('error'); } return; }
+  if (!url) { if (status) { status.textContent = 'الصق رابط m3u8 أولاً'; status.classList.add('error'); } return; }
   const isProtected = protectedToggle ? protectedToggle.checked : true;
   if (button) { button.disabled = true; button.textContent = 'جارٍ الحفظ…'; }
   if (status) status.classList.remove('error');
   try {
     if (isProtected) {
-      // رابط API له الأولوية عند التشغيل (يُجلَب حيًا في الـ Worker)، ورابط
-      // m3u8 اليدوي يبقى كنسخة احتياطية إذا فشل الجلب الحي أو ما فيه API.
-      await setDoc(doc(db, 'privateStreams', channelId), { url: url || null, apiUrl: apiUrl || null, updatedAt: serverTimestamp() }, { merge: true });
+      await setDoc(doc(db, 'privateStreams', channelId), { url, updatedAt: serverTimestamp() }, { merge: true });
       await updateDoc(doc(db, 'channels', channelId), { protected: true, directUrl: null });
-      if (status) status.textContent = apiUrl ? 'تم الحفظ ✓ سيُجلب حيًا عند كل مشاهدة' : 'تم الحفظ ✓ محمي برابط مؤقت';
+      if (status) status.textContent = 'تم الحفظ ✓ محمي برابط مؤقت';
     } else {
-      await updateDoc(doc(db, 'channels', channelId), { protected: false, directUrl: url || apiUrl });
+      await updateDoc(doc(db, 'channels', channelId), { protected: false, directUrl: url });
       if (status) status.textContent = 'تم الحفظ ✓ بدون حماية — تشغيل فوري بدون تأخير';
     }
   } catch (_) {
