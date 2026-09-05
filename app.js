@@ -78,6 +78,7 @@ const categoriesBulkBar = document.querySelector('#categories-bulk-bar');
 const categoriesSelectedCount = document.querySelector('#categories-selected-count');
 const categoriesBulkDelete = document.querySelector('#categories-bulk-delete');
 const categoriesSelectCancel = document.querySelector('#categories-select-cancel');
+const categoriesSelectAll = document.querySelector('#categories-select-all');
 let categorySelectMode = false;
 const selectedCategoryIds = new Set();
 
@@ -114,6 +115,7 @@ const channelsBulkBar = document.querySelector('#channels-bulk-bar');
 const channelsSelectedCount = document.querySelector('#channels-selected-count');
 const channelsBulkDelete = document.querySelector('#channels-bulk-delete');
 const channelsSelectCancel = document.querySelector('#channels-select-cancel');
+const channelsSelectAll = document.querySelector('#channels-select-all');
 let channelSelectMode = false;
 const selectedChannelIds = new Set();
 
@@ -918,7 +920,27 @@ categoriesList.addEventListener('click', (event) => {
 function updateCategoriesBulkBar() {
   categoriesSelectedCount.textContent = `${selectedCategoryIds.size} محدد`;
   categoriesBulkDelete.disabled = selectedCategoryIds.size === 0;
+  const visibleIds = currentCategories
+    .filter((item) => (item.parentId || null) === currentParentId)
+    .map((item) => item.id);
+  categoriesSelectAll.checked = visibleIds.length > 0 && visibleIds.every((id) => selectedCategoryIds.has(id));
+  categoriesSelectAll.indeterminate = selectedCategoryIds.size > 0
+    && selectedCategoryIds.size < visibleIds.length
+    && visibleIds.some((id) => selectedCategoryIds.has(id));
 }
+
+categoriesSelectAll.addEventListener('change', () => {
+  const visibleIds = currentCategories
+    .filter((item) => (item.parentId || null) === currentParentId)
+    .map((item) => item.id);
+  if (categoriesSelectAll.checked) {
+    visibleIds.forEach((id) => selectedCategoryIds.add(id));
+  } else {
+    visibleIds.forEach((id) => selectedCategoryIds.delete(id));
+  }
+  updateCategoriesBulkBar();
+  renderCurrentCategoryView();
+});
 
 categoriesSelectToggle.addEventListener('click', () => {
   categorySelectMode = !categorySelectMode;
@@ -1229,7 +1251,27 @@ channelsList.addEventListener('click', async (event) => {
 function updateChannelsBulkBar() {
   channelsSelectedCount.textContent = `${selectedChannelIds.size} محدد`;
   channelsBulkDelete.disabled = selectedChannelIds.size === 0;
+  const visibleIds = currentChannels
+    .filter((item) => item.categoryId === currentParentId)
+    .map((item) => item.id);
+  channelsSelectAll.checked = visibleIds.length > 0 && visibleIds.every((id) => selectedChannelIds.has(id));
+  channelsSelectAll.indeterminate = selectedChannelIds.size > 0
+    && selectedChannelIds.size < visibleIds.length
+    && visibleIds.some((id) => selectedChannelIds.has(id));
 }
+
+channelsSelectAll.addEventListener('change', () => {
+  const visibleIds = currentChannels
+    .filter((item) => item.categoryId === currentParentId)
+    .map((item) => item.id);
+  if (channelsSelectAll.checked) {
+    visibleIds.forEach((id) => selectedChannelIds.add(id));
+  } else {
+    visibleIds.forEach((id) => selectedChannelIds.delete(id));
+  }
+  updateChannelsBulkBar();
+  renderChannelsForCurrentCategory();
+});
 
 channelsSelectToggle.addEventListener('click', () => {
   channelSelectMode = !channelSelectMode;

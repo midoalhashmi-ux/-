@@ -180,3 +180,31 @@ textarea:focus { border-color: #38bdf8; }
   .matches-sync-actions { flex-direction: column; align-items: stretch; width: 100%; }
   .matches-sync-actions button { width: 100%; }
 }
+
+/* تحسين التحديد الجماعي: حقل "تحديد الكل" */
+.select-all-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: #dceafa;
+  font-size: .88rem;
+  white-space: nowrap;
+}
+.select-all-control input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #38bdf8;
+}
+
+/* حقل الترتيب يقبل الرقم فقط بدون أسهم الزيادة/النقصان */
+.order-input::-webkit-outer-spin-button,
+.order-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.order-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
