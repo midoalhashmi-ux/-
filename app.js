@@ -962,26 +962,43 @@ categoriesSelectCancel.addEventListener('click', () => {
 categoriesBulkDelete.addEventListener('click', async () => {
   const ids = [...selectedCategoryIds];
   if (!ids.length) return;
-  // نفس شرط الحذف المفرد: أي قسم محدد فيه أقسام فرعية أو قنوات يوقف
-  // العملية كاملة بدل حذف جزئي قد يربك المستخدم.
-  const blocked = ids.filter((id) => currentCategories.some((item) => item.parentId === id)
-    || currentChannels.some((item) => item.categoryId === id));
-  if (blocked.length) {
-    const names = blocked.map((id) => currentCategories.find((item) => item.id === id)?.title || id).join('، ');
-    window.alert(`لا يمكن إتمام الحذف الجماعي: الأقسام التالية تحتوي على أقسام فرعية أو قنوات ولازم تُفرَّغ أولاً:\n${names}`);
-    return;
-  }
-  if (!window.confirm(`حذف ${ids.length} قسم نهائياً؟`)) return;
+
+  // إذا تم تحديد قسم رئيسي مع قسم فرعي، نحذف كل شجرة القسم مرة واحدة بدون تكرار.
+  const allCategoryIds = new Set();
+  ids.forEach((id) => getCategoryDeleteTree(id).forEach((categoryId) => allCategoryIds.add(categoryId)));
+  const categoryIdSet = new Set(allCategoryIds);
+  const channelCount = currentChannels.filter((channel) => categoryIdSet.has(channel.categoryId)).length;
+  const childCount = Math.max(0, allCategoryIds.size - ids.length);
+  const details = [
+    `${allCategoryIds.size} قسم`,
+    childCount ? `${childCount} قسم فرعي` : '',
+    channelCount ? `${channelCount} قناة` : '',
+  ].filter(Boolean).join(' و');
+
+  if (!window.confirm(`سيتم حذف ${details} نهائياً مع جميع العناصر التابعة. هل تريد المتابعة؟`)) return;
+  if (!requestDeletePassword('أدخل كلمة المرور لتأكيد الحذف الجماعي للأقسام وجميع العناصر التابعة:')) return;
+
   categoriesBulkDelete.disabled = true;
   try {
-    await Promise.all(ids.map((id) => deleteDoc(doc(db, 'categories', id))));
+    const refs = [
+      ...allCategoryIds.map((categoryId) => doc(db, 'categories', categoryId)),
+      ...currentChannels
+        .filter((channel) => categoryIdSet.has(channel.categoryId))
+        .map((channel) => doc(db, 'channels', channel.id)),
+    ];
+    for (let i = 0; i < refs.length; i += 450) {
+      const batch = writeBatch(db);
+      refs.slice(i, i + 450).forEach((ref) => batch.delete(ref));
+      await batch.commit();
+    }
     selectedCategoryIds.clear();
     categorySelectMode = false;
     categoriesBulkBar.classList.add('hidden');
     categoriesSelectToggle.textContent = 'تحديد للحذف';
-    await loadCategories();
+    await Promise.all([loadCategories(), loadChannels()]);
+    window.alert('تم حذف الأقسام والعناصر التابعة لها بنجاح.');
   } catch (_) {
-    window.alert('تعذر حذف بعض الأقسام. تحقق من قواعد Firestore وحاول مرة أخرى.');
+    window.alert('تعذر الحذف. تحقق من قواعد Firestore وحاول مرة أخرى.');
     categoriesBulkDelete.disabled = false;
   }
 });
@@ -990,13 +1007,80 @@ function editCategory(id) {
   openCategoryForm(id);
 }
 
+const CATEGORY_DELETE_PASSWORD = '5115';
+
+function getCategoryDeleteTree(rootId) {
+  const ids = new Set([rootId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    currentCategories.forEach((item) => {
+      if (item.parentId && ids.has(item.parentId) && !ids.has(item.id)) {
+        ids.add(item.id);
+        changed = true;
+      }
+    });
+  }
+  return [...ids];
+}
+
+function requestDeletePassword(message) {
+  const password = window.prompt(message);
+  if (password === null) return false;
+  if (password !== CATEGORY_DELETE_PASSWORD) {
+    window.alert('كلمة المرور غير صحيحة. لم يتم حذف أي شيء.');
+    return false;
+  }
+  return true;
+}
+
+async function deleteCategoryTree(rootId) {
+  const categoryIds = getCategoryDeleteTree(rootId);
+  const categoryIdSet = new Set(categoryIds);
+  const channelIds = currentChannels
+    .filter((channel) => categoryIdSet.has(channel.categoryId))
+    .map((channel) => channel.id);
+  const refs = [
+    ...categoryIds.map((categoryId) => doc(db, 'categories', categoryId)),
+    ...channelIds.map((channelId) => doc(db, 'channels', channelId)),
+  ];
+
+  // Firestore batches have a 500-operation limit, so delete in safe chunks.
+  for (let i = 0; i < refs.length; i += 450) {
+    const batch = writeBatch(db);
+    refs.slice(i, i + 450).forEach((ref) => batch.delete(ref));
+    await batch.commit();
+  }
+
+  return { categoryCount: categoryIds.length, channelCount: channelIds.length };
+}
+
 async function deleteCategory(id) {
   const category = currentCategories.find((item) => item.id === id);
-  if (currentCategories.some((item) => item.parentId === id)) return window.alert('لا يمكن حذف قسم يحتوي أقساماً داخلية.');
-  if (currentChannels.some((item) => item.categoryId === id)) return window.alert('لا يمكن حذف قسم يحتوي قنوات. احذف القنوات أولاً.');
-  if (!window.confirm(`حذف «${category?.title || ''}»؟`)) return;
-  try { await deleteDoc(doc(db, 'categories', id)); await loadCategories(); }
-  catch (_) { window.alert('تعذر الحذف.'); }
+  if (!category) return;
+  const categoryIds = getCategoryDeleteTree(id);
+  const categoryIdSet = new Set(categoryIds);
+  const channelCount = currentChannels.filter((channel) => categoryIdSet.has(channel.categoryId)).length;
+  const childCount = Math.max(0, categoryIds.length - 1);
+  const details = [
+    childCount ? `${childCount} قسم فرعي` : '',
+    channelCount ? `${channelCount} قناة` : '',
+  ].filter(Boolean).join(' و');
+  const warning = details
+    ? `سيتم حذف «${category.title || ''}» وجميع ما بداخله${details ? ` (${details})` : ''} نهائياً. هل تريد المتابعة؟`
+    : `حذف «${category.title || ''}» نهائياً؟`;
+  if (!window.confirm(warning)) return;
+  if (!requestDeletePassword('أدخل كلمة المرور لتأكيد حذف القسم وجميع العناصر التابعة له:')) return;
+
+  try {
+    const result = await deleteCategoryTree(id);
+    if (currentParentId && categoryIdSet.has(currentParentId)) currentParentId = category.parentId || null;
+    selectedCategoryIds.clear();
+    await Promise.all([loadCategories(), loadChannels()]);
+    window.alert(`تم الحذف بنجاح: ${result.categoryCount} قسم و${result.channelCount} قناة.`);
+  } catch (_) {
+    window.alert('تعذر الحذف. لم تكتمل العملية بالكامل. تحقق من قواعد Firestore وحاول مرة أخرى.');
+  }
 }
 
 backToRoot.addEventListener('click', () => {
